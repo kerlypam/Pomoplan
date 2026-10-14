@@ -174,6 +174,31 @@ form { display: flex; flex-direction: column; gap: 1rem; }
 .alarm-bell { font-size: 3rem; animation: ring 1s ease-in-out infinite; }
 @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(244,63,94,.5); } 50% { box-shadow: 0 0 0 14px rgba(244,63,94,0); } }
 @keyframes ring { 0%,100% { transform: rotate(0); } 20% { transform: rotate(-18deg); } 40% { transform: rotate(14deg); } 60% { transform: rotate(-8deg); } }
+.range-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.range-label { font-weight: 600; font-size: .95rem; min-width: 9rem; text-align: center; }
+.stat-delta { font-size: .75rem; color: var(--text-muted); min-height: 1em; }
+.stat-delta.up { color: #34d399; } .stat-delta.down { color: #f87171; }
+.analytics-container.single .multi-only { display: none; }
+.day-chart { display: flex; align-items: flex-end; gap: 3px; height: 160px; padding-top: 1.2rem; }
+.day-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; position: relative; }
+.day-bar { width: 100%; max-width: 34px; background: var(--accent-rose); border-radius: 4px 4px 0 0; min-height: 2px; opacity: .85; }
+.day-bar.zero { background: var(--bg-card); }
+.day-bar.today { opacity: 1; box-shadow: 0 0 0 1px #fff3; }
+.day-val { font-size: .65rem; color: var(--text-secondary); margin-bottom: 2px; }
+.day-lbl { font-size: .62rem; color: var(--text-muted); margin-top: 4px; white-space: nowrap; }
+.section-title { font-size: 1.1rem; font-weight: 700; margin-top: .5rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .06em; font-size: .85rem; }
+.analysis-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+@media (min-width: 760px) { .analysis-grid { grid-template-columns: 1fr 1fr; } }
+.trend-legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .75rem; color: var(--text-secondary); }
+.distr-dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #fbbf24; left: 50%; transform: translate(-50%, 50%); }
+.heat { display: grid; grid-template-columns: 34px repeat(var(--cols), 1fr); gap: 2px; font-size: .62rem; color: var(--text-muted); overflow-x: auto; }
+.heat-cell { height: 22px; min-width: 14px; border-radius: 3px; background: var(--bg-card); }
+.heat-lbl { display: flex; align-items: center; }
+.heat-h { text-align: center; }
+.kv { display: flex; justify-content: space-between; font-size: .88rem; padding: .35rem 0; border-bottom: 1px solid var(--border-color); gap: .5rem; }
+.kv:last-child { border-bottom: none; }
+.kv strong { white-space: nowrap; }
+.mini-track { display: flex; height: 10px; border-radius: 99px; overflow: hidden; background: var(--bg-card); margin-top: .3rem; }
 .toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: .7rem 1.1rem; border-radius: var(--radius-md); box-shadow: var(--shadow-lg); font-size: .88rem; z-index: 200; max-width: 92vw; display: none; }
 .toast.show { display: block; animation: fadeIn .2s; }
   </style>
@@ -203,7 +228,7 @@ form { display: flex; flex-direction: column; gap: 1rem; }
     <button class="nav-tab active" data-tab="focus-view">⏱️ Focus Timer</button>
     <button class="nav-tab" data-tab="planner-view">🗓️ Timetable</button>
     <button class="nav-tab" data-tab="tasks-view">✅ To-Do & Goals</button>
-    <button class="nav-tab" data-tab="analytics-view">📊 Daily Review</button>
+    <button class="nav-tab" data-tab="analytics-view">📊 Dashboard</button>
   </nav>
 
   <main class="main-content">
@@ -336,18 +361,69 @@ form { display: flex; flex-direction: column; gap: 1rem; }
     <!-- ANALYTICS -->
     <section id="analytics-view" class="view-section">
       <div class="analytics-container">
+        <div class="range-bar">
+          <div class="session-modes" id="stats-range" style="margin:0;">
+            <button class="mode-btn active" data-range="day">Today</button>
+            <button class="mode-btn" data-range="week">Week</button>
+            <button class="mode-btn" data-range="month">Month</button>
+          </div>
+          <div class="date-nav">
+            <button class="btn-icon" id="stats-prev" title="Previous">‹</button>
+            <span id="stats-range-label" class="range-label"></span>
+            <button class="btn-icon" id="stats-next" title="Next">›</button>
+          </div>
+        </div>
         <div class="stats-grid">
-          <div class="stat-card"><span class="stat-value" id="stats-pomos-completed">0</span><span class="stat-label">Pomodoros today</span></div>
-          <div class="stat-card"><span class="stat-value" id="stats-focus-minutes">0m</span><span class="stat-label">Focused time</span></div>
-          <div class="stat-card"><span class="stat-value" id="stats-tasks-done">0</span><span class="stat-label">Tasks finished today</span></div>
-          <div class="stat-card"><span class="stat-value" id="stats-interruptions-total">0</span><span class="stat-label">Distractions</span></div>
+          <div class="stat-card"><span class="stat-value" id="stats-pomos-completed">0</span><span class="stat-label">Pomodoros</span><span class="stat-delta" id="delta-pomos"></span></div>
+          <div class="stat-card"><span class="stat-value" id="stats-focus-minutes">0m</span><span class="stat-label">Focused time</span><span class="stat-delta" id="delta-focus"></span></div>
+          <div class="stat-card"><span class="stat-value" id="stats-tasks-done">0</span><span class="stat-label">Tasks finished</span><span class="stat-delta" id="delta-tasks"></span></div>
+          <div class="stat-card"><span class="stat-value" id="stats-interruptions-total">0</span><span class="stat-label">Distractions</span><span class="stat-delta" id="delta-distr"></span></div>
+          <div class="stat-card multi-only"><span class="stat-value" id="stats-active-days">0</span><span class="stat-label">Days with focus</span></div>
+          <div class="stat-card multi-only"><span class="stat-value" id="stats-avg-day">0</span><span class="stat-label">Avg pomodoros / active day</span></div>
+          <div class="stat-card"><span class="stat-value" id="stats-streak">0</span><span class="stat-label">Current streak (days)</span></div>
+          <div class="stat-card multi-only"><span class="stat-value" id="stats-best-day">-</span><span class="stat-label">Best day</span></div>
+        </div>
+        <div class="chart-card multi-only">
+          <h2 class="card-title">Pomodoros per day</h2>
+          <div class="day-chart" id="day-chart"></div>
         </div>
         <div class="chart-card">
           <h2 class="card-title">Where your time went (by goal)</h2>
+          
           <div id="goal-distribution-bars"></div>
         </div>
+        <h2 class="section-title">Long-term analysis</h2>
         <div class="chart-card">
-          <h2 class="card-title">Daily reflection</h2>
+          <div class="card-header"><h2 class="card-title">Last 12 weeks</h2><span class="hint" id="trend-summary"></span></div>
+          <div class="day-chart" id="week-chart"></div>
+          <div class="trend-legend"><span><span class="legend-dot" style="background:var(--accent-rose)"></span>Pomodoros per week</span><span id="distr-trend"></span></div>
+        </div>
+        <div class="chart-card">
+          <div class="card-header"><h2 class="card-title">When you focus best</h2><span class="hint">Last 90 days</span></div>
+          <div id="heatmap"></div>
+          <span class="hint" id="heatmap-note"></span>
+        </div>
+        <div class="analysis-grid">
+          <div class="chart-card">
+            <h2 class="card-title">Estimation accuracy</h2>
+            <div id="estimation"></div>
+          </div>
+          <div class="chart-card">
+            <h2 class="card-title">Goals, last 12 weeks</h2>
+            <div id="goal-trend"></div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h2 class="card-title">Export for Excel or Google Sheets</h2>
+          <span class="hint">Every pomodoro and task is stored with its date. Download it as CSV to build your own pivot tables.</span>
+          <div class="form-actions" style="justify-content:flex-start;">
+            <button class="btn-secondary btn-sm" id="export-sessions-csv">⬇ Pomodoros (CSV)</button>
+            <button class="btn-secondary btn-sm" id="export-tasks-csv">⬇ Tasks (CSV)</button>
+          </div>
+          <span class="hint" id="history-size"></span>
+        </div>
+        <div class="chart-card">
+          <h2 class="card-title">Daily reflection (today)</h2>
           <textarea class="text-input" id="daily-reflection-note" rows="4" placeholder="What worked, what held you back, tomorrow's first task..."></textarea>
           <div style="display:flex;justify-content:flex-end;"><button class="btn-primary btn-sm" id="save-reflection-btn">Save reflection</button></div>
         </div>
@@ -768,6 +844,8 @@ class App {
     if (!this.findTask(this.store.activeTaskId)) this.store.activeTaskId = this.pendingTasks()[0]?.id || null;
 
     this.$ = id => document.getElementById(id);
+    // Ask the browser not to evict this app's data under storage pressure.
+    try { navigator.storage?.persist?.(); } catch {}
     this.bind();
     this.setTimerMode('work');
     this.render();
@@ -811,7 +889,7 @@ class App {
     this.$('timer-start-btn').addEventListener('click', () => this.toggleTimer());
     this.$('timer-reset-btn').addEventListener('click', () => { this.sessionInterruptions = 0; this.setTimerMode(this.currentMode); });
     this.$('timer-skip-btn').addEventListener('click', () => this.advancePhase(false));
-    document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn[data-mode]').forEach(b => b.addEventListener('click', () => {
       if (this.isRunning && !confirm('Timer is running. Switch mode and lose this session?')) return;
       this.setTimerMode(b.dataset.mode);
     }));
@@ -873,6 +951,14 @@ class App {
       localStorage.removeItem(KEY); ['pomoplan_goals', 'pomoplan_tasks', 'pomoplan_busy_blocks', 'pomoplan_scheduled_slots', 'pomoplan_settings', 'pomoplan_sessions', 'pomoplan_reflections', 'pomoplan_gcal_token'].forEach(k => localStorage.removeItem(k));
       location.reload();
     });
+    document.querySelectorAll('#stats-range .mode-btn').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('#stats-range .mode-btn').forEach(x => x.classList.toggle('active', x === b));
+      this.statsRange = b.dataset.range; this.statsOffset = 0; this.renderAnalytics();
+    }));
+    this.$('export-sessions-csv').addEventListener('click', () => this.exportSessionsCSV());
+    this.$('export-tasks-csv').addEventListener('click', () => this.exportTasksCSV());
+    this.$('stats-prev').addEventListener('click', () => { this.statsOffset = (this.statsOffset || 0) - 1; this.renderAnalytics(); });
+    this.$('stats-next').addEventListener('click', () => { if ((this.statsOffset || 0) < 0) { this.statsOffset++; this.renderAnalytics(); } });
     this.$('save-reflection-btn').addEventListener('click', () => {
       this.store.reflections[todayStr()] = this.$('daily-reflection-note').value.trim(); this.persist(); this.toast('Reflection saved.');
     });
@@ -917,7 +1003,7 @@ class App {
       Object.assign(t, fields, { completedPomodoros: Math.max(0, parseInt(this.$('task-input-done').value, 10) || 0) });
       Object.values(this.store.schedule).forEach(day => Object.values(day).forEach(s => { if (s.taskId === t.id) s.taskTitle = t.title; }));
     } else {
-      const t = { id: uid('task'), ...fields, completedPomodoros: 0, status: 'TODO', completedAt: null, createdAt: todayStr() };
+      const t = { id: uid('task'), ...fields, initialEst: fields.estPomodoros, completedPomodoros: 0, status: 'TODO', completedAt: null, createdAt: todayStr() };
       this.store.tasks.unshift(t);
       if (!this.activeTask) this.store.activeTaskId = t.id;
     }
@@ -1050,7 +1136,7 @@ class App {
     this.stopInterval(); this.isRunning = false;
     this.currentMode = mode;
     this.remaining = this.totalDuration = this.durationFor(mode);
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    document.querySelectorAll('.mode-btn[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
     const s = this.store.settings;
     document.querySelector('[data-mode="work"]').textContent = `Work (${s.workTime}m)`;
     document.querySelector('[data-mode="shortBreak"]').textContent = `Short (${s.shortBreak}m)`;
@@ -1090,7 +1176,8 @@ class App {
     if (finished) this.ring(wasWork);
     if (wasWork && finished) {
       const t = this.activeTask;
-      this.store.sessions.push({ id: uid('session'), taskId: t?.id || null, goalId: t?.goalId || null, date: todayStr(), durationMins: this.store.settings.workTime, interruptions: this.sessionInterruptions });
+      const nowD = new Date();
+      this.store.sessions.push({ id: uid('session'), taskId: t?.id || null, goalId: t?.goalId || null, date: todayStr(), time: `${pad(nowD.getHours())}:${pad(nowD.getMinutes())}`, durationMins: this.store.settings.workTime, interruptions: this.sessionInterruptions });
       if (t) {
         t.completedPomodoros = (t.completedPomodoros || 0) + 1;
         if (t.completedPomodoros >= t.estPomodoros) {
@@ -1383,23 +1470,187 @@ class App {
     this.renderCalendarStatus();
   }
 
-  renderAnalytics() {
-    const today = todayStr(), ss = this.todaySessions();
+  // Returns {from, to, label, days[]} for the selected range and offset (0 = current period).
+  statsPeriod(range = this.statsRange || 'day', offset = this.statsOffset || 0) {
+    const t = todayStr(); let from, to, label;
+    if (range === 'day') { from = to = addDays(t, offset); label = offset === 0 ? 'Today' : fmtDate(from); }
+    else if (range === 'week') {
+      const wd = (new Date(t + 'T12:00').getDay() + 6) % 7; // Monday = 0
+      from = addDays(t, -wd + offset * 7); to = addDays(from, 6);
+      label = `${fmtDate(from)} - ${fmtDate(to)}`;
+    } else {
+      const [y, m] = t.split('-').map(Number); const d0 = new Date(y, m - 1 + offset, 1), d1 = new Date(y, m + offset, 0);
+      from = localDate(d0); to = localDate(d1);
+      label = d0.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    }
+    const days = []; for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);
+    return { from, to, label, days };
+  }
+
+  periodStats(p) {
+    const ss = this.store.sessions.filter(s => s.date >= p.from && s.date <= p.to);
+    const tasks = this.store.tasks.filter(t => t.completedAt && t.completedAt >= p.from && t.completedAt <= p.to);
     const mins = ss.reduce((a, s) => a + (s.durationMins || 25), 0);
-    this.$('stats-pomos-completed').textContent = ss.length;
-    this.$('stats-focus-minutes').textContent = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
-    this.$('stats-tasks-done').textContent = this.store.tasks.filter(t => t.completedAt === today).length;
-    this.$('stats-interruptions-total').textContent = ss.reduce((a, s) => a + (s.interruptions || 0), 0);
+    const perDay = {}; ss.forEach(s => perDay[s.date] = (perDay[s.date] || 0) + 1);
+    return { ss, tasks, mins, perDay, pomos: ss.length, distr: ss.reduce((a, s) => a + (s.interruptions || 0), 0) };
+  }
+
+  renderAnalytics() {
+    this.renderTrends();
+    const range = this.statsRange || 'day', p = this.statsPeriod(), st = this.periodStats(p);
+    const prev = this.periodStats(this.statsPeriod(range, (this.statsOffset || 0) - 1));
+    const today = todayStr(), fmtM = m => m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+    document.querySelector('.analytics-container').classList.toggle('single', range === 'day');
+    this.$('stats-range-label').textContent = p.label;
+    this.$('stats-next').disabled = (this.statsOffset || 0) >= 0; this.$('stats-next').style.opacity = (this.statsOffset || 0) >= 0 ? .3 : 1;
+    this.$('stats-pomos-completed').textContent = st.pomos;
+    this.$('stats-focus-minutes').textContent = fmtM(st.mins);
+    this.$('stats-tasks-done').textContent = st.tasks.length;
+    this.$('stats-interruptions-total').textContent = st.distr;
+
+    // change vs previous period of the same length
+    const prevName = { day: 'yesterday', week: 'last week', month: 'last month' }[range];
+    const delta = (id, cur, old, lowerIsBetter = false, fmt = v => v) => {
+      const el = this.$(id); el.className = 'stat-delta';
+      if (!cur && !old) { el.textContent = ''; return; }
+      const diff = cur - old; if (!diff) { el.textContent = `= ${prevName}`; return; }
+      el.classList.add((diff > 0) !== lowerIsBetter ? 'up' : 'down');
+      el.textContent = `${diff > 0 ? '+' : '-'}${fmt(Math.abs(diff))} vs ${prevName}`;
+    };
+    delta('delta-pomos', st.pomos, prev.pomos); delta('delta-focus', st.mins, prev.mins, false, fmtM);
+    delta('delta-tasks', st.tasks.length, prev.tasks.length); delta('delta-distr', st.distr, prev.distr, true);
+
+    const activeDays = Object.keys(st.perDay).length;
+    this.$('stats-active-days').textContent = `${activeDays}/${p.days.filter(d => d <= today).length}`;
+    this.$('stats-avg-day').textContent = activeDays ? (st.pomos / activeDays).toFixed(1) : '0';
+    const best = Object.entries(st.perDay).sort((a, b) => b[1] - a[1])[0];
+    this.$('stats-best-day').textContent = best ? `${best[1]}` : '-';
+    this.$('stats-best-day').title = best ? fmtDate(best[0]) : '';
+    if (best) this.$('stats-best-day').nextElementSibling.textContent = `Best day (${fmtDate(best[0])})`; else this.$('stats-best-day').nextElementSibling.textContent = 'Best day';
+
+    // streak: consecutive days up to today (or yesterday if nothing yet today) with at least one pomodoro
+    const daysSet = new Set(this.store.sessions.map(s => s.date));
+    let d = daysSet.has(today) ? today : addDays(today, -1), streak = 0;
+    while (daysSet.has(d)) { streak++; d = addDays(d, -1); }
+    this.$('stats-streak').textContent = streak;
+
+    // per-day chart
+    if (range !== 'day') {
+      const max = Math.max(1, ...p.days.map(x => st.perDay[x] || 0));
+      const lbl = x => range === 'week' ? new Date(x + 'T12:00').toLocaleDateString(undefined, { weekday: 'short' }) : String(+x.slice(8));
+      this.$('day-chart').innerHTML = p.days.map(x => {
+        const v = st.perDay[x] || 0, h = Math.round(v / max * 100);
+        return `<div class="day-col" title="${esc(fmtDate(x))}: ${v} pomodoros"><span class="day-val">${v || ''}</span><div class="day-bar${v ? '' : ' zero'}${x === today ? ' today' : ''}" style="height:${v ? h : 2}%"></div><span class="day-lbl">${range === 'month' && p.days.length > 20 && +x.slice(8) % 5 !== 1 && x !== today ? '&nbsp;' : lbl(x)}</span></div>`;
+      }).join('');
+    }
+
+    // reflection always for today
     const note = this.$('daily-reflection-note');
     if (document.activeElement !== note) note.value = this.store.reflections[today] || '';
+
+    // goal distribution for the period
     const bars = this.$('goal-distribution-bars');
-    if (!mins) { bars.innerHTML = '<div class="empty-state">Finish your first pomodoro today to see this.</div>'; return; }
-    const map = {}; ss.forEach(s => { const k = s.goalId || 'none'; map[k] = (map[k] || 0) + (s.durationMins || 25); });
+    const doneByGoal = {}; st.tasks.forEach(t => { const k = t.goalId || 'none'; doneByGoal[k] = (doneByGoal[k] || 0) + 1; });
+    if (!st.mins) { bars.innerHTML = '<div class="empty-state">No pomodoros in this period yet.</div>'; return; }
+    const map = {}; st.ss.forEach(s => { const k = s.goalId || 'none'; map[k] = (map[k] || 0) + (s.durationMins || 25); });
     bars.innerHTML = Object.entries(map).sort((a, b) => b[1] - a[1]).map(([k, m]) => {
-      const g = this.findGoal(k), p = Math.round(m / mins * 100);
-      return `<div class="goal-bar-item"><div class="goal-bar-label"><span>${esc(g ? g.title : 'No goal')} (${m}m)</span><strong>${p}%</strong></div>
-        <div class="goal-bar-track"><div class="goal-bar-fill" style="width:${p}%;background:${g ? safeColor(g.color) : '#94a3b8'}"></div></div></div>`;
+      const g = this.findGoal(k), pc = Math.round(m / st.mins * 100), n = doneByGoal[k] || 0;
+      return `<div class="goal-bar-item"><div class="goal-bar-label"><span>${esc(g ? g.title : 'No goal')} · ${fmtM(m)}${n ? ` · ${n} task${n > 1 ? 's' : ''} done` : ''}</span><strong>${pc}%</strong></div>
+        <div class="goal-bar-track"><div class="goal-bar-fill" style="width:${pc}%;background:${g ? safeColor(g.color) : '#94a3b8'}"></div></div></div>`;
     }).join('');
+  }
+
+  renderTrends() {
+    const today = todayStr(), ss = this.store.sessions;
+    const wd0 = (new Date(today + 'T12:00').getDay() + 6) % 7, thisMonday = addDays(today, -wd0);
+    const weeks = []; for (let i = 11; i >= 0; i--) weeks.push(addDays(thisMonday, -7 * i));
+    const wk = weeks.map(w => {
+      const e = addDays(w, 6), list = ss.filter(x => x.date >= w && x.date <= e);
+      return { w, n: list.length, distr: list.reduce((a, x) => a + (x.interruptions || 0), 0), list };
+    });
+    const max = Math.max(1, ...wk.map(x => x.n)), maxD = Math.max(0.5, ...wk.map(x => x.n ? x.distr / x.n : 0));
+    this.$('week-chart').innerHTML = wk.map(x => {
+      const rate = x.n ? x.distr / x.n : null;
+      return `<div class="day-col" title="Week of ${esc(fmtDate(x.w))}: ${x.n} pomodoros${rate !== null ? `, ${rate.toFixed(1)} distractions each` : ''}">
+        <span class="day-val">${x.n || ''}</span><div class="day-bar${x.n ? '' : ' zero'}${x.w === thisMonday ? ' today' : ''}" style="height:${x.n ? Math.round(x.n / max * 100) : 2}%;position:relative;">
+</div>
+        <span class="day-lbl">${new Date(x.w + 'T12:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span></div>`;
+    }).join('');
+    const dl4 = wk.slice(-5, -1).filter(x => x.n), dp4 = wk.slice(-9, -5).filter(x => x.n);
+    const rateOf = arr => arr.reduce((a, x) => a + x.distr, 0) / Math.max(1, arr.reduce((a, x) => a + x.n, 0));
+    this.$('distr-trend').textContent = dl4.length ? `Distractions per pomodoro (last 4 weeks): ${rateOf(dl4).toFixed(1)}${dp4.length ? ` vs ${rateOf(dp4).toFixed(1)} before` : ''}` : '';
+    const last4 = wk.slice(-5, -1).reduce((a, x) => a + x.n, 0) / 4, prev4 = wk.slice(-9, -5).reduce((a, x) => a + x.n, 0) / 4;
+    this.$('trend-summary').textContent = last4 || prev4 ? `Avg last 4 full weeks: ${last4.toFixed(1)}/week${prev4 ? ` (${last4 >= prev4 ? '+' : ''}${Math.round((last4 - prev4) / prev4 * 100)}% vs 4 weeks before)` : ''}` : '';
+
+    // heatmap weekday x hour, last 90 days, only sessions with recorded time
+    const from90 = addDays(today, -90), timed = ss.filter(x => x.time && x.date >= from90);
+    const sh = toMin(this.store.settings.workStart) / 60 | 0, eh = Math.max(sh + 1, Math.ceil(toMin(this.store.settings.workEnd) / 60));
+    const hMin = Math.min(sh, ...timed.map(x => +x.time.slice(0, 2))), hMax = Math.max(eh - 1, ...timed.map(x => +x.time.slice(0, 2)));
+    const hours = []; for (let h = hMin; h <= hMax; h++) hours.push(h);
+    const grid = {}; timed.forEach(x => { const k = ((new Date(x.date + 'T12:00').getDay() + 6) % 7) + '-' + (+x.time.slice(0, 2)); grid[k] = (grid[k] || 0) + 1; });
+    const gmax = Math.max(1, ...Object.values(grid));
+    const dayNames = [0, 1, 2, 3, 4, 5, 6].map(i => new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'short' }));
+    let html = `<div class="heat" style="--cols:${hours.length}"><span></span>${hours.map(h => `<span class="heat-h">${h}</span>`).join('')}`;
+    dayNames.forEach((dn, di) => {
+      html += `<span class="heat-lbl">${esc(dn)}</span>` + hours.map(h => { const v = grid[di + '-' + h] || 0; return `<span class="heat-cell" title="${esc(dn)} ${h}:00 · ${v} pomodoros" style="${v ? `background:rgba(244,63,94,${(0.2 + 0.8 * v / gmax).toFixed(2)})` : ''}"></span>`; }).join('');
+    });
+    this.$('heatmap').innerHTML = html + '</div>';
+    const top = Object.entries(grid).sort((a, b) => b[1] - a[1])[0];
+    this.$('heatmap-note').textContent = !timed.length ? 'Fills in as you complete pomodoros (hour is recorded from this version on).'
+      : `Your strongest slot: ${dayNames[+top[0].split('-')[0]]} ${top[0].split('-')[1]}:00 (${top[1]} pomodoros).`;
+
+    // estimation accuracy on completed tasks with an initial estimate
+    const done = this.store.tasks.filter(t => t.status === 'COMPLETED' && t.initialEst && t.completedPomodoros);
+    if (!done.length) this.$('estimation').innerHTML = '<div class="hint">Shows up after you finish tasks created in this version. Compares your first estimate with the pomodoros it really took.</div>';
+    else {
+      const est = done.reduce((a, t) => a + t.initialEst, 0), real = done.reduce((a, t) => a + t.completedPomodoros, 0);
+      const under = done.filter(t => t.completedPomodoros > t.initialEst).length, ratio = real / est;
+      const worst = done.map(t => ({ t, r: t.completedPomodoros / t.initialEst })).sort((a, b) => b.r - a.r)[0];
+      this.$('estimation').innerHTML = `
+        <div class="kv"><span>Tasks analyzed</span><strong>${done.length}</strong></div>
+        <div class="kv"><span>Estimated vs real pomodoros</span><strong>${est} → ${real}</strong></div>
+        <div class="kv"><span>Real effort vs estimate</span><strong class="${ratio > 1.15 ? 'overdue' : ''}">${Math.round(ratio * 100)}%</strong></div>
+        <div class="kv"><span>Tasks that took longer</span><strong>${under}/${done.length}</strong></div>
+        ${worst.r > 1 ? `<div class="kv"><span>Biggest overrun</span><strong title="${esc(worst.t.title)}">${esc(worst.t.title.slice(0, 28))}${worst.t.title.length > 28 ? '…' : ''} ×${worst.r.toFixed(1)}</strong></div>` : ''}
+        <span class="hint">${ratio > 1.15 ? `Tip: multiply your estimates by ${ratio.toFixed(1)} when planning.` : 'Your estimates are close to reality.'}</span>`;
+    }
+
+    // goal share per 4-week block (last 12 weeks)
+    const blocks = [0, 1, 2].map(i => { const w = weeks.slice(i * 4, i * 4 + 4); return { from: w[0], to: addDays(w[3], 6) }; });
+    const goalIds = [...new Set(ss.filter(x => x.date >= blocks[0].from).map(x => x.goalId || 'none'))];
+    if (!goalIds.length) { this.$('goal-trend').innerHTML = '<div class="hint">No pomodoros in the last 12 weeks.</div>'; }
+    else {
+      const colorOf = k => { const g = this.findGoal(k); return g ? safeColor(g.color) : '#94a3b8'; };
+      this.$('goal-trend').innerHTML = blocks.map(b => {
+        const list = ss.filter(x => x.date >= b.from && x.date <= b.to), tot = list.length;
+        const segs = goalIds.map(k => ({ k, n: list.filter(x => (x.goalId || 'none') === k).length })).filter(x => x.n);
+        return `<div style="margin-bottom:.7rem;"><div class="kv" style="border:none;padding:0;"><span>${esc(fmtDate(b.from))} - ${esc(fmtDate(b.to))}</span><strong>${tot}</strong></div>
+          <div class="mini-track">${segs.map(x => `<div title="${esc(this.findGoal(x.k)?.title || 'No goal')}: ${x.n}" style="width:${x.n / tot * 100}%;background:${colorOf(x.k)}"></div>`).join('')}</div></div>`;
+      }).join('') + `<div class="trend-legend">${goalIds.map(k => `<span><span class="legend-dot" style="background:${colorOf(k)}"></span>${esc(this.findGoal(k)?.title || 'No goal')}</span>`).join('')}</div>`;
+    }
+
+    const first = ss.reduce((a, x) => !a || x.date < a ? x.date : a, null);
+    this.$('history-size').textContent = ss.length ? `History: ${ss.length} pomodoros since ${fmtDate(first)}.` : 'No history yet.';
+  }
+
+  downloadCSV(name, header, rows) {
+    const cell = v => { const t = String(v ?? ''); return /[",\n;]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const csv = '\ufeff' + [header, ...rows].map(r => r.map(cell).join(',')).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `${name}-${todayStr()}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  exportSessionsCSV() {
+    const gname = id => this.findGoal(id)?.title || '';
+    this.downloadCSV('pomoplan-pomodoros', ['date', 'weekday', 'time', 'minutes', 'distractions', 'goal', 'task'],
+      [...this.store.sessions].sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).map(x => [
+        x.date, new Date(x.date + 'T12:00').toLocaleDateString('en', { weekday: 'short' }), x.time || '', x.durationMins || 25, x.interruptions || 0,
+        gname(x.goalId), this.findTask(x.taskId)?.title || '']));
+  }
+
+  exportTasksCSV() {
+    this.downloadCSV('pomoplan-tasks', ['title', 'goal', 'priority', 'status', 'initial_estimate', 'final_estimate', 'pomodoros_done', 'due_date', 'created', 'completed'],
+      this.store.tasks.map(t => [t.title, this.findGoal(t.goalId)?.title || '', 'P' + t.priority, t.status, t.initialEst || '', t.estPomodoros, t.completedPomodoros || 0, t.dueDate || '', t.createdAt || '', t.completedAt || '']));
   }
 
   updateNextMeeting() {
