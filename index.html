@@ -688,12 +688,14 @@ class CalendarSync {
     if (this.tokenClient && this.tokenClient._cid === clientId) return true;
     this.tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/calendar.events.readonly',
+      scope: 'https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/calendar.calendarlist.readonly',
       callback: resp => {
         if (resp.error) { this.app.toast('Google sign-in failed: ' + resp.error); return; }
         this.st.gcal.token = resp.access_token;
         this.st.gcal.expiresAt = Date.now() + (Number(resp.expires_in) || 3600) * 1000;
         this.st.gcal.consented = true;
+        this.st.gcal.scopeV = 2;
+        this.st.gcal.hasList = String(resp.scope || '').includes('calendar.calendarlist.readonly');
         this.st.save();
         this.fetchEvents();
       }
@@ -706,7 +708,7 @@ class CalendarSync {
     if (!this.originOk()) { this.app.toast('Google sign-in needs the app served from https or localhost. See setup guide.'); return; }
     if (!this.st.settings.gcalClientId) { this.app.openGCalModal(); return; }
     if (!this.ensureClient()) { this.app.toast('Google script not loaded yet or Client ID invalid. Try again in a few seconds.'); return; }
-    this.tokenClient.requestAccessToken({ prompt: this.st.gcal.consented ? '' : 'consent' });
+    this.tokenClient.requestAccessToken({ prompt: this.st.gcal.consented && this.st.gcal.scopeV === 2 ? '' : 'consent' });
   }
 
   syncOrConnect() { this.tokenValid() ? this.fetchEvents() : this.connect(); }
@@ -727,23 +729,39 @@ class CalendarSync {
       timeMin: new Date(fy, fm - 1, fd).toISOString(), timeMax: new Date(ty, tm - 1, td).toISOString(),
       singleEvents: 'true', orderBy: 'startTime', maxResults: '250'
     });
+    const headers = { Authorization: `Bearer ${this.st.gcal.token}` };
+    const expired = () => { this.st.gcal.token = null; this.st.save(); this.app.renderCalendarStatus(); if (!silent) this.app.toast('Google session expired. Tap Sync to reconnect.'); };
     try {
-      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, { headers: { Authorization: `Bearer ${this.st.gcal.token}` } });
-      if (res.status === 401) { this.st.gcal.token = null; this.st.save(); this.app.renderCalendarStatus(); if (!silent) this.app.toast('Google session expired. Tap Sync to reconnect.'); return; }
-      if (!res.ok) { if (!silent) this.app.toast('Google Calendar error: ' + res.status); return; }
-      const data = await res.json();
-      const blocks = [];
-      (data.items || []).forEach(ev => {
-        if (!ev.start?.dateTime) return; // all-day events do not block focus time
-        if (ev.transparency === 'transparent' || ev.status === 'cancelled') return;
-        const me = (ev.attendees || []).find(a => a.self);
-        if (me && me.responseStatus === 'declined') return;
-        blocks.push(...this.splitToDays(ev.id, ev.summary || 'Busy', new Date(ev.start.dateTime), new Date(ev.end?.dateTime || ev.start.dateTime), 'gcal', ev.htmlLink));
-      });
+      // 1. Which calendars to read: every calendar you have checked in Google Calendar (falls back to the main one).
+      let cals = [{ id: 'primary', summary: 'Main calendar' }], listNote = '';
+      const lr = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader&maxResults=100', { headers });
+      if (lr.status === 401) return expired();
+      if (lr.ok) {
+        const ld = await lr.json();
+        const picked = (ld.items || []).filter(c => c.selected && !c.hidden && !/#(holiday|contacts)@group\.v\.calendar\.google\.com$/.test(c.id) && !/#weather@/.test(c.id));
+        if (picked.length) cals = picked.map(c => ({ id: c.id, summary: c.summaryOverride || c.summary }));
+      } else listNote = ' (main calendar only: reconnect to allow reading all calendars)';
+
+      // 2. Events from each calendar.
+      const blocks = [], seen = new Set(); let errors = 0;
+      for (const cal of cals) {
+        const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?${params}`, { headers });
+        if (r.status === 401) return expired();
+        if (!r.ok) { errors++; continue; }
+        const data = await r.json();
+        (data.items || []).forEach(ev => {
+          if (!ev.start?.dateTime || ev.status === 'cancelled') return; // all-day events do not block focus time
+          const me = (ev.attendees || []).find(a => a.self);
+          if (me && me.responseStatus === 'declined') return;
+          const key = (ev.iCalUID || ev.id) + ev.start.dateTime; if (seen.has(key)) return; seen.add(key); // same meeting in two calendars
+          const title = (ev.summary || 'Busy') + (ev.transparency === 'transparent' ? ' (shown as free in Google)' : '');
+          blocks.push(...this.splitToDays(ev.id, title, new Date(ev.start.dateTime), new Date(ev.end?.dateTime || ev.start.dateTime), 'gcal', ev.htmlLink));
+        });
+      }
       this.st.busyBlocks = this.st.busyBlocks.filter(b => !(b.source === 'gcal' && b.date >= from && b.date < to)).concat(blocks);
-      this.st.gcal.lastSync = Date.now();
+      this.st.gcal.lastSync = Date.now(); this.st.gcal.calCount = cals.length;
       this.st.save(); this.app.render();
-      if (!silent) this.app.toast(`Synced ${blocks.length} events (today + 7 days).`);
+      if (!silent) this.app.toast(`Synced ${blocks.length} events from ${cals.length} calendar${cals.length > 1 ? 's' : ''} (today + 7 days)${listNote}${errors ? `. ${errors} calendar(s) could not be read.` : '.'}`, 6000);
     } catch (e) { if (!silent) this.app.toast('Could not reach Google Calendar: ' + e.message); }
   }
 
@@ -1309,7 +1327,7 @@ class App {
     else if (imported) { pill.className = 'gcal-status-pill connected'; txt.textContent = 'Calendar: .ics'; }
     else { pill.className = 'gcal-status-pill disconnected'; txt.textContent = 'Calendar: offline'; }
     const ls = this.$('last-sync-text');
-    if (ls) ls.textContent = g.lastSync ? `Last Google sync: ${new Date(g.lastSync).toLocaleString()}${this.calendar.tokenValid() ? ' (auto every 15 min)' : ''}` : '';
+    if (ls) ls.textContent = g.lastSync ? `Last Google sync: ${new Date(g.lastSync).toLocaleString()}${g.calCount ? ` · ${g.calCount} calendar${g.calCount > 1 ? 's' : ''}` : ''}${this.calendar.tokenValid() ? ' (auto every 15 min)' : ''}` : '';
   }
 
   renderActiveTask() {
