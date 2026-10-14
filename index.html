@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PomoPlan</title>
+  <meta name="description" content="Prioritize your to-dos, map them to your calendar timetable, and execute with a Pomodoro focus tracker.">
+  <meta name="theme-color" content="#0b0f19">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+:root {
+  --bg-primary: #0b0f19; --bg-secondary: #131b2e; --bg-card: #1c2640; --bg-card-hover: #243052;
+  --border-color: #2b395b; --text-primary: #f8fafc; --text-secondary: #94a3b8; --text-muted: #64748b;
+  --accent-blue: #3b82f6; --accent-blue-hover: #2563eb; --accent-emerald: #10b981; --accent-rose: #f43f5e;
+  --accent-amber: #f59e0b; --accent-purple: #a855f7;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-full: 9999px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.4); --shadow-md: 0 4px 12px rgba(0,0,0,.35); --shadow-lg: 0 10px 25px rgba(0,0,0,.5);
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; overflow-x: hidden; }
+.app-container { display: flex; flex-direction: column; min-height: 100vh; max-width: 1200px; margin: 0 auto; width: 100%; }
+.app-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: 1rem 1.25rem; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); position: sticky; top: 0; z-index: 40; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: .75rem; }
+.brand h1 { font-size: 1.25rem; font-weight: 700; background: linear-gradient(135deg,#60a5fa,#f43f5e); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.header-actions { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.gcal-status-pill { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .65rem; border-radius: var(--radius-full); font-size: .75rem; font-weight: 600; cursor: pointer; border: 1px solid transparent; background: none; font-family: inherit; }
+.gcal-status-pill.disconnected { background: rgba(100,116,139,.2); color: var(--text-secondary); border-color: rgba(100,116,139,.4); }
+.gcal-status-pill.connected { background: rgba(16,185,129,.15); color: #34d399; border-color: rgba(16,185,129,.4); }
+.gcal-status-pill.expired { background: rgba(245,158,11,.15); color: #fbbf24; border-color: rgba(245,158,11,.4); }
+.today-badge { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .75rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-full); font-size: .85rem; font-weight: 600; color: var(--accent-rose); }
+.btn-icon { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: .4rem; border-radius: var(--radius-md); display: inline-flex; align-items: center; justify-content: center; font-size: 1.1rem; line-height: 1; }
+.btn-icon:hover { background: var(--bg-card); color: var(--text-primary); }
+.btn-icon.danger { color: #f87171; }
+.nav-tabs { display: flex; gap: .5rem; padding: .75rem 1.25rem; border-bottom: 1px solid var(--border-color); overflow-x: auto; scrollbar-width: none; }
+.nav-tabs::-webkit-scrollbar { display: none; }
+.nav-tab { display: inline-flex; align-items: center; gap: .5rem; padding: .5rem 1rem; background: transparent; color: var(--text-secondary); border: 1px solid transparent; border-radius: var(--radius-md); font-size: .9rem; font-weight: 500; cursor: pointer; white-space: nowrap; font-family: inherit; }
+.nav-tab:hover { background: var(--bg-secondary); color: var(--text-primary); }
+.nav-tab.active { background: var(--bg-card); border-color: var(--border-color); color: var(--accent-blue); font-weight: 600; }
+.main-content { flex: 1; padding: 1.25rem; }
+.view-section { display: none; }
+.view-section.active { display: block; animation: fadeIn .25s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.workday-balance-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 1.25rem; display: flex; flex-direction: column; gap: .6rem; }
+.balance-labels { display: flex; flex-direction: column; gap: .35rem; font-size: .85rem; }
+@media (min-width: 650px) { .balance-labels { flex-direction: row; justify-content: space-between; align-items: center; } }
+.balance-legend { display: flex; align-items: center; gap: .85rem; font-size: .8rem; color: var(--text-secondary); flex-wrap: wrap; }
+.legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: .25rem; }
+.balance-bar-track { width: 100%; height: 12px; background: var(--bg-card); border-radius: var(--radius-full); overflow: hidden; display: flex; }
+.balance-bar-segment { height: 100%; transition: width .5s; }
+.focus-container { display: grid; grid-template-columns: 1fr; gap: 1.5rem; max-width: 800px; margin: 0 auto; }
+@media (min-width: 768px) { .focus-container { grid-template-columns: 1.2fr .8fr; } }
+.timer-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem 1.5rem; display: flex; flex-direction: column; align-items: center; box-shadow: var(--shadow-md); }
+.session-modes { display: flex; gap: .35rem; background: var(--bg-primary); padding: .35rem; border-radius: var(--radius-full); margin-bottom: 1.5rem; flex-wrap: wrap; justify-content: center; }
+.mode-btn { padding: .4rem .9rem; border: none; background: transparent; color: var(--text-secondary); font-size: .85rem; font-weight: 500; border-radius: var(--radius-full); cursor: pointer; font-family: inherit; }
+.mode-btn.active { background: var(--accent-blue); color: #fff; }
+.timer-ring-container { position: relative; width: 250px; height: 250px; max-width: 70vw; max-height: 70vw; margin: .5rem 0 1.5rem; display: flex; align-items: center; justify-content: center; }
+.timer-ring-svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+.timer-ring-bg { stroke: var(--bg-card); stroke-width: 10; fill: none; }
+.timer-ring-progress { stroke: var(--accent-rose); stroke-width: 10; stroke-linecap: round; fill: none; transition: stroke-dashoffset .5s, stroke .3s; }
+.timer-time-display { position: absolute; display: flex; flex-direction: column; align-items: center; }
+.time-digits { font-size: 3.25rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.time-label { font-size: .85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+.active-task-banner { width: 100%; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: .85rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.active-task-info { display: flex; flex-direction: column; gap: .2rem; overflow: hidden; }
+.active-task-goal { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--accent-blue); }
+.active-task-title { font-size: 1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.active-task-pomos { font-size: .85rem; color: var(--accent-rose); font-weight: 600; flex-shrink: 0; }
+.next-meeting-indicator { display: flex; align-items: center; gap: .5rem; padding: .45rem .85rem; background: rgba(59,130,246,.1); border: 1px solid rgba(59,130,246,.25); border-radius: var(--radius-full); font-size: .8rem; color: #93c5fd; margin-bottom: 1.25rem; }
+.timer-controls { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
+.btn-primary { background: var(--accent-blue); color: #fff; border: none; padding: .75rem 1.5rem; font-size: 1rem; font-weight: 600; border-radius: var(--radius-md); cursor: pointer; display: inline-flex; align-items: center; gap: .5rem; font-family: inherit; }
+.btn-primary:hover { background: var(--accent-blue-hover); }
+.btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); padding: .75rem 1.1rem; font-size: .95rem; font-weight: 500; border-radius: var(--radius-md); cursor: pointer; display: inline-flex; align-items: center; gap: .5rem; font-family: inherit; }
+.btn-secondary:hover { background: var(--bg-card-hover); border-color: var(--text-muted); }
+.btn-danger { background: rgba(239,68,68,.12); color: #f87171; border: 1px solid rgba(239,68,68,.35); padding: .6rem 1rem; border-radius: var(--radius-md); cursor: pointer; font-weight: 600; font-family: inherit; font-size: .9rem; }
+.btn-sm { padding: .4rem .8rem !important; font-size: .82rem !important; }
+.interruption-row { display: flex; align-items: center; justify-content: space-between; width: 100%; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: .85rem; color: var(--text-secondary); gap: .5rem; }
+.btn-interruption { background: rgba(244,63,94,.12); color: var(--accent-rose); border: 1px solid rgba(244,63,94,.3); padding: .35rem .75rem; border-radius: var(--radius-md); font-size: .8rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+.focus-queue-card, .timetable-card, .goals-section, .stat-card, .chart-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.25rem; }
+.focus-queue-card { display: flex; flex-direction: column; gap: 1rem; }
+.card-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.card-title { font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: .5rem; }
+.queue-list { display: flex; flex-direction: column; gap: .5rem; max-height: 480px; overflow-y: auto; }
+.task-item { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: .75rem .85rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; cursor: pointer; user-select: none; }
+.task-item[draggable="true"] { cursor: grab; }
+.task-item.dragging { opacity: .45; }
+.task-item:hover { border-color: var(--accent-blue); background: var(--bg-card-hover); }
+.task-item.active-selection { border-color: var(--accent-rose); box-shadow: 0 0 0 1px var(--accent-rose); }
+.task-item.completed { opacity: .55; }
+.task-item.completed .task-text { text-decoration: line-through; color: var(--text-muted); }
+.task-left { display: flex; align-items: center; gap: .75rem; flex: 1; overflow: hidden; }
+.task-check-btn { background: transparent; border: 2px solid var(--text-muted); width: 20px; height: 20px; border-radius: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: transparent; flex-shrink: 0; font-size: .75rem; }
+.task-item.completed .task-check-btn { background: var(--accent-emerald); border-color: var(--accent-emerald); color: #fff; }
+.task-details { display: flex; flex-direction: column; gap: .2rem; overflow: hidden; }
+.task-meta-row { display: flex; align-items: center; gap: .4rem; font-size: .75rem; flex-wrap: wrap; }
+.goal-tag { display: inline-block; padding: .15rem .45rem; border-radius: var(--radius-sm); font-size: .7rem; font-weight: 600; color: #fff; }
+.priority-pill { font-size: .7rem; font-weight: 700; padding: .1rem .4rem; border-radius: var(--radius-sm); }
+.priority-4 { background: rgba(239,68,68,.2); color: #f87171; border: 1px solid rgba(239,68,68,.4); }
+.priority-3 { background: rgba(249,115,22,.2); color: #fb923c; border: 1px solid rgba(249,115,22,.4); }
+.priority-2 { background: rgba(234,179,8,.2); color: #facc15; border: 1px solid rgba(234,179,8,.4); }
+.priority-1 { background: rgba(59,130,246,.2); color: #60a5fa; border: 1px solid rgba(59,130,246,.4); }
+.overdue { color: #f87171 !important; font-weight: 600; }
+.task-text { font-size: .9rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-right { display: flex; align-items: center; gap: .25rem; flex-shrink: 0; }
+.pomo-badge { display: inline-flex; align-items: center; gap: .25rem; font-size: .8rem; font-weight: 600; color: var(--accent-rose); background: rgba(244,63,94,.1); padding: .2rem .45rem; border-radius: var(--radius-sm); }
+.planner-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+@media (min-width: 900px) { .planner-grid { grid-template-columns: 340px 1fr; } }
+.planner-grid > *, .focus-container > * { min-width: 0; }
+.timetable-card .card-header { flex-wrap: wrap; }
+.main-content { min-width: 0; overflow-x: hidden; }
+@media (max-width: 480px) { .main-content { padding: 1rem; } .timetable-card, .focus-queue-card { padding: 1rem; } .slot-assign { max-width: 55%; } }
+.timeline-header { display: flex; flex-direction: column; gap: .75rem; margin-bottom: 1.25rem; }
+.timeline-toolbar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.date-nav { display: flex; align-items: center; gap: .35rem; }
+.timeline-slots { display: flex; flex-direction: column; gap: .6rem; }
+.time-slot-row { display: grid; grid-template-columns: 56px 1fr; gap: .75rem; }
+.slot-time { font-size: .8rem; font-weight: 600; color: var(--text-muted); padding-top: .4rem; }
+.slot-block { background: var(--bg-card); border: 1px dashed var(--border-color); border-radius: var(--radius-md); padding: .6rem .85rem; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.slot-block.drag-over { border-color: var(--accent-emerald) !important; background: rgba(16,185,129,.15) !important; }
+.slot-block.busy { background: rgba(100,116,139,.15); border: 1px solid rgba(100,116,139,.35); border-left: 4px solid #64748b; }
+.slot-block.busy.gcal-synced { border-left-color: #4285f4; background: rgba(66,133,244,.1); }
+.slot-block.buffer { background: rgba(100,116,139,.07); border-style: dotted; }
+.slot-block.suggested { border-left: 4px solid var(--accent-blue); background: rgba(59,130,246,.06); }
+.slot-block.scheduled { background: rgba(16,185,129,.08); border: 1px solid rgba(16,185,129,.3); border-left: 4px solid var(--accent-emerald); }
+.slot-block.past { opacity: .45; }
+.slot-title { font-size: .85rem; font-weight: 600; }
+.slot-subtitle { font-size: .75rem; color: var(--text-muted); }
+.slot-warning { font-size: .72rem; color: #fbbf24; margin-top: .15rem; }
+.slot-assign { max-width: 46%; font-size: .78rem !important; padding: .3rem .4rem !important; }
+.tasks-container, .analytics-container { display: flex; flex-direction: column; gap: 1.25rem; }
+.analytics-container { max-width: 900px; margin: 0 auto; gap: 1.5rem; }
+.action-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.filter-group { display: flex; gap: .5rem; flex-wrap: wrap; }
+.select-input, .text-input { background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: .5rem .75rem; border-radius: var(--radius-md); font-size: .9rem; outline: none; font-family: inherit; width: 100%; }
+.filter-group .select-input { width: auto; }
+.select-input:focus, .text-input:focus { border-color: var(--accent-blue); }
+textarea.text-input { resize: vertical; }
+.goals-section { display: flex; flex-direction: column; gap: 1rem; }
+.goals-chips { display: flex; flex-wrap: wrap; gap: .6rem; }
+.goal-chip { display: inline-flex; align-items: center; gap: .45rem; padding: .3rem .4rem .3rem .8rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-full); font-size: .85rem; cursor: pointer; }
+.goal-chip:hover { border-color: var(--accent-blue); }
+.goal-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.chip-count { font-size: .72rem; color: var(--text-muted); }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+.stat-card { display: flex; flex-direction: column; gap: .4rem; }
+.stat-value { font-size: 2rem; font-weight: 800; }
+.stat-label { font-size: .8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; }
+.chart-card { display: flex; flex-direction: column; gap: 1rem; padding: 1.5rem; }
+.goal-bar-item { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .75rem; }
+.goal-bar-label { display: flex; justify-content: space-between; font-size: .85rem; }
+.goal-bar-track { width: 100%; height: 10px; background: var(--bg-card); border-radius: var(--radius-full); overflow: hidden; }
+.goal-bar-fill { height: 100%; border-radius: var(--radius-full); }
+.proposal-item { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: .65rem .85rem; display: flex; align-items: center; justify-content: space-between; font-size: .85rem; gap: .5rem; }
+.proposal-time-pill { font-weight: 700; color: var(--accent-blue); background: rgba(59,130,246,.15); padding: .15rem .45rem; border-radius: var(--radius-sm); margin-right: .5rem; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+.modal-overlay.active { display: flex; }
+.modal-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); width: 100%; max-width: 500px; max-height: 92vh; overflow-y: auto; padding: 1.5rem; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; gap: 1.1rem; }
+.modal-header { display: flex; align-items: center; justify-content: space-between; }
+.modal-header h3 { font-size: 1.15rem; font-weight: 700; }
+form { display: flex; flex-direction: column; gap: 1rem; }
+.form-group { display: flex; flex-direction: column; gap: .4rem; }
+.form-group label { font-size: .85rem; font-weight: 600; color: var(--text-secondary); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.form-actions { display: flex; justify-content: flex-end; gap: .75rem; flex-wrap: wrap; }
+.form-actions .spacer { flex: 1; }
+.hint { font-size: .78rem; color: var(--text-muted); }
+.divider { border-top: 1px solid var(--border-color); padding-top: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+.empty-state { text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: .9rem; }
+.alarm-card { max-width: 360px; text-align: center; align-items: center; border-color: var(--accent-rose); animation: pulse 1.2s ease-in-out infinite; }
+.alarm-card h3 { font-size: 1.4rem; }
+.alarm-bell { font-size: 3rem; animation: ring 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(244,63,94,.5); } 50% { box-shadow: 0 0 0 14px rgba(244,63,94,0); } }
+@keyframes ring { 0%,100% { transform: rotate(0); } 20% { transform: rotate(-18deg); } 40% { transform: rotate(14deg); } 60% { transform: rotate(-8deg); } }
+.toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: .7rem 1.1rem; border-radius: var(--radius-md); box-shadow: var(--shadow-lg); font-size: .88rem; z-index: 200; max-width: 92vw; display: none; }
+.toast.show { display: block; animation: fadeIn .2s; }
+  </style>
+</head>
+<body>
+<div class="app-container">
+  <header class="app-header">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 512 512" aria-hidden="true">
+        <defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#ef4444"/></linearGradient></defs>
+        <rect width="512" height="512" rx="128" fill="#0f172a"/><circle cx="256" cy="275" r="160" fill="url(#grad)"/><circle cx="256" cy="275" r="120" fill="#1e293b"/>
+        <line x1="256" y1="275" x2="256" y2="195" stroke="#f8fafc" stroke-width="12" stroke-linecap="round"/><line x1="256" y1="275" x2="310" y2="275" stroke="#ef4444" stroke-width="10" stroke-linecap="round"/>
+        <path d="M256,115 C256,70 280,50 310,40 C290,65 285,90 270,115 Z" fill="#22c55e"/>
+      </svg>
+      <h1>PomoPlan</h1>
+    </div>
+    <div class="header-actions">
+      <button class="gcal-status-pill disconnected" id="gcal-status-btn" title="Google Calendar">
+        <span>📅</span><span id="gcal-status-text">Calendar: Offline</span>
+      </button>
+      <div class="today-badge"><span>🍅</span><span id="header-pomo-count">0 done</span></div>
+      <button class="btn-icon" id="open-settings-btn" title="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-tab="focus-view">⏱️ Focus Timer</button>
+    <button class="nav-tab" data-tab="planner-view">🗓️ Timetable</button>
+    <button class="nav-tab" data-tab="tasks-view">✅ To-Do & Goals</button>
+    <button class="nav-tab" data-tab="analytics-view">📊 Daily Review</button>
+  </nav>
+
+  <main class="main-content">
+    <!-- FOCUS -->
+    <section id="focus-view" class="view-section active">
+      <div class="focus-container">
+        <div class="timer-card">
+          <div class="session-modes">
+            <button class="mode-btn active" data-mode="work">Work</button>
+            <button class="mode-btn" data-mode="shortBreak">Short Break</button>
+            <button class="mode-btn" data-mode="longBreak">Long Break</button>
+          </div>
+          <div class="timer-ring-container">
+            <svg class="timer-ring-svg" viewBox="0 0 260 260">
+              <circle class="timer-ring-bg" cx="130" cy="130" r="110"/>
+              <circle class="timer-ring-progress" id="timer-progress-ring" cx="130" cy="130" r="110" stroke-dasharray="691.15" stroke-dashoffset="0"/>
+            </svg>
+            <div class="timer-time-display">
+              <div class="time-digits" id="timer-display">25:00</div>
+              <div class="time-label" id="timer-mode-label">Deep Focus</div>
+            </div>
+          </div>
+          <div class="active-task-banner">
+            <div class="active-task-info">
+              <span class="active-task-goal" id="active-task-goal">No active task</span>
+              <span class="active-task-title" id="active-task-title">Pick a task from the queue</span>
+            </div>
+            <span class="active-task-pomos" id="active-task-pomos">🍅 0/0</span>
+          </div>
+          <div class="next-meeting-indicator" id="next-meeting-indicator" style="display:none;">⏰ <span id="next-meeting-text"></span></div>
+          <div class="timer-controls">
+            <button class="btn-primary" id="timer-start-btn">▶ <span id="start-btn-label">Start Focus</span></button>
+            <button class="btn-secondary" id="timer-reset-btn" title="Reset">↺</button>
+            <button class="btn-secondary" id="timer-skip-btn" title="Skip to next phase (does not count a pomodoro)">⏭</button>
+          </div>
+          <div class="interruption-row">
+            <span>Distractions this session: <strong id="session-interruptions-count">0</strong></span>
+            <button class="btn-interruption" id="log-interruption-btn">+1 Distraction</button>
+          </div>
+        </div>
+        <div class="focus-queue-card">
+          <div class="card-header">
+            <h2 class="card-title">⭐ Focus Queue</h2>
+            <button class="btn-secondary btn-sm" id="quick-add-task-btn">+ Task</button>
+          </div>
+          <p class="hint">Tap a task to attach it to the timer. Sorted by priority.</p>
+          <div class="queue-list" id="focus-queue-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLANNER -->
+    <section id="planner-view" class="view-section">
+      <div class="workday-balance-card">
+        <div class="balance-labels">
+          <div><strong>Workday Breakdown</strong> (<span id="total-workday-hours">0h</span>)</div>
+          <div class="balance-legend">
+            <span><span class="legend-dot" style="background:var(--accent-emerald)"></span>Focus <span id="balance-focus-hrs">0h</span></span>
+            <span><span class="legend-dot" style="background:#64748b"></span>Meetings + buffer <span id="balance-meeting-hrs">0h</span></span>
+            <span><span class="legend-dot" style="background:var(--accent-blue)"></span>Free <span id="balance-buffer-hrs">0h</span></span>
+          </div>
+        </div>
+        <div class="balance-bar-track">
+          <div class="balance-bar-segment" id="bar-focus-seg" style="background:var(--accent-emerald)"></div>
+          <div class="balance-bar-segment" id="bar-meeting-seg" style="background:#64748b"></div>
+          <div class="balance-bar-segment" id="bar-buffer-seg" style="background:rgba(59,130,246,.3)"></div>
+        </div>
+      </div>
+      <div class="planner-grid">
+        <div class="timetable-card">
+          <div class="card-header" style="margin-bottom:.5rem;">
+            <h2 class="card-title">Priority Tasks</h2>
+            <span class="pomo-badge" id="unscheduled-pomo-total">0</span>
+          </div>
+          <p class="hint" style="margin-bottom:.75rem;">Drag a task into a free slot (desktop) or use the selector inside each free slot (mobile).</p>
+          <div class="queue-list" id="planner-task-backlog"></div>
+        </div>
+        <div class="timetable-card">
+          <div class="timeline-header">
+            <div class="card-header">
+              <h2 class="card-title">Timetable</h2>
+              <div class="date-nav">
+                <button class="btn-icon" id="prev-day-btn" title="Previous day">‹</button>
+                <input type="date" id="view-date-input" class="text-input" style="width:auto;padding:.35rem .5rem;">
+                <button class="btn-icon" id="next-day-btn" title="Next day">›</button>
+                <button class="btn-secondary btn-sm" id="today-btn">Today</button>
+              </div>
+            </div>
+            <div class="timeline-toolbar">
+              <button class="btn-secondary btn-sm" id="sync-gcal-btn">🔄 Sync Google</button>
+              <label class="btn-secondary btn-sm" style="cursor:pointer;">⬆ Import .ics<input type="file" id="ics-file-input" accept=".ics,text/calendar" style="display:none;"></label>
+              <button class="btn-secondary btn-sm" id="add-meeting-block-btn">+ Meeting</button>
+              <button class="btn-secondary btn-sm" id="clear-plan-btn">Clear plan</button>
+              <button class="btn-primary btn-sm" id="auto-schedule-btn">✨ Auto-plan day</button>
+            </div>
+            <span class="hint" id="last-sync-text"></span>
+          </div>
+          <div class="timeline-slots" id="timeline-slots-container"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TASKS -->
+    <section id="tasks-view" class="view-section">
+      <div class="tasks-container">
+        <div class="goals-section">
+          <div class="card-header">
+            <h2 class="card-title">Goals & Projects</h2>
+            <button class="btn-secondary btn-sm" id="new-goal-btn">+ New Goal</button>
+          </div>
+          <p class="hint">Tap a goal to edit it. Use × to delete (its tasks are kept, without goal).</p>
+          <div class="goals-chips" id="goals-list-container"></div>
+        </div>
+        <div class="action-bar">
+          <div class="filter-group">
+            <select class="select-input" id="filter-goal"></select>
+            <select class="select-input" id="filter-priority">
+              <option value="ALL">All priorities</option><option value="4">Urgent (P4)</option><option value="3">High (P3)</option><option value="2">Medium (P2)</option><option value="1">Low (P1)</option>
+            </select>
+            <select class="select-input" id="filter-status">
+              <option value="TODO">To-Do</option><option value="COMPLETED">Completed</option><option value="ALL">All</option>
+            </select>
+          </div>
+          <button class="btn-primary btn-sm" id="new-task-btn">+ Add Task</button>
+        </div>
+        <div class="queue-list" id="all-tasks-list" style="max-height:none;"></div>
+      </div>
+    </section>
+
+    <!-- ANALYTICS -->
+    <section id="analytics-view" class="view-section">
+      <div class="analytics-container">
+        <div class="stats-grid">
+          <div class="stat-card"><span class="stat-value" id="stats-pomos-completed">0</span><span class="stat-label">Pomodoros today</span></div>
+          <div class="stat-card"><span class="stat-value" id="stats-focus-minutes">0m</span><span class="stat-label">Focused time</span></div>
+          <div class="stat-card"><span class="stat-value" id="stats-tasks-done">0</span><span class="stat-label">Tasks finished today</span></div>
+          <div class="stat-card"><span class="stat-value" id="stats-interruptions-total">0</span><span class="stat-label">Distractions</span></div>
+        </div>
+        <div class="chart-card">
+          <h2 class="card-title">Where your time went (by goal)</h2>
+          <div id="goal-distribution-bars"></div>
+        </div>
+        <div class="chart-card">
+          <h2 class="card-title">Daily reflection</h2>
+          <textarea class="text-input" id="daily-reflection-note" rows="4" placeholder="What worked, what held you back, tomorrow's first task..."></textarea>
+          <div style="display:flex;justify-content:flex-end;"><button class="btn-primary btn-sm" id="save-reflection-btn">Save reflection</button></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ALARM OVERLAY -->
+<div class="modal-overlay" id="alarm-overlay">
+  <div class="modal-card alarm-card">
+    <div class="alarm-bell">⏰</div>
+    <h3 id="alarm-title">Time is up</h3>
+    <p class="hint" id="alarm-text"></p>
+    <div class="form-actions" style="justify-content:center;">
+      <button type="button" class="btn-secondary" id="alarm-dismiss-btn">OK</button>
+      <button type="button" class="btn-primary" id="alarm-start-next-btn">Start next</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROPOSAL MODAL -->
+<div class="modal-overlay" id="proposal-modal">
+  <div class="modal-card" style="max-width:600px;">
+    <div class="modal-header"><h3>Proposed schedule</h3><button class="btn-icon" data-close>&times;</button></div>
+    <div id="proposal-summary-stats" class="hint" style="background:var(--bg-card);padding:.75rem 1rem;border-radius:var(--radius-md);"></div>
+    <div id="proposal-items-list" style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:.5rem;"></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" data-close>Cancel</button>
+      <button type="button" class="btn-primary" id="apply-proposal-btn">✓ Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- GCAL MODAL -->
+<div class="modal-overlay" id="gcal-modal">
+  <div class="modal-card">
+    <div class="modal-header"><h3>Google Calendar</h3><button class="btn-icon" data-close>&times;</button></div>
+    <p class="hint">Reads your events for today and the next 7 days. Access lasts about 1 hour; after that the pill turns amber and you tap Sync to reconnect.</p>
+    <div class="form-group">
+      <label for="gcal-client-id">Google OAuth 2.0 Client ID</label>
+      <input type="text" id="gcal-client-id" class="text-input" placeholder="123456789-abc.apps.googleusercontent.com">
+      <span class="hint">Only works when this page is served from http://localhost or an https:// address registered in Google Cloud Console. It does not work opening the file directly.</span>
+    </div>
+    <div class="form-actions" style="justify-content:flex-start;">
+      <button type="button" class="btn-primary" id="gcal-connect-auth-btn">Connect with Google</button>
+      <button type="button" class="btn-danger" id="gcal-disconnect-btn">Disconnect</button>
+    </div>
+    <div class="divider">
+      <span class="hint"><strong>No Client ID?</strong> Export your calendar as .ics from Google Calendar (Settings, Import & export) and use "Import .ics" in the Timetable. Recurring events are not expanded by the .ics import.</span>
+    </div>
+  </div>
+</div>
+
+<!-- TASK MODAL -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal-card">
+    <div class="modal-header"><h3 id="task-modal-title">Add task</h3><button class="btn-icon" data-close>&times;</button></div>
+    <form id="task-form">
+      <div class="form-group"><label for="task-input-title">Title *</label><input type="text" id="task-input-title" class="text-input" required maxlength="140"></div>
+      <div class="form-row">
+        <div class="form-group"><label for="task-input-goal">Goal</label><select id="task-input-goal" class="select-input"></select></div>
+        <div class="form-group"><label for="task-input-priority">Priority</label>
+          <select id="task-input-priority" class="select-input"><option value="4">Urgent (P4)</option><option value="3" selected>High (P3)</option><option value="2">Medium (P2)</option><option value="1">Low (P1)</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label for="task-input-pomos">Estimated pomodoros</label><input type="number" id="task-input-pomos" class="text-input" min="1" max="20" value="2"></div>
+        <div class="form-group"><label for="task-input-due">Due date</label><input type="date" id="task-input-due" class="text-input"></div>
+      </div>
+      <div class="form-group" id="task-done-pomos-group" style="display:none;"><label for="task-input-done">Pomodoros already done</label><input type="number" id="task-input-done" class="text-input" min="0" max="50" value="0"></div>
+      <div class="form-actions">
+        <button type="button" class="btn-danger" id="delete-task-btn" style="display:none;">Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn-secondary" data-close>Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- GOAL MODAL -->
+<div class="modal-overlay" id="goal-modal">
+  <div class="modal-card">
+    <div class="modal-header"><h3 id="goal-modal-title">New goal</h3><button class="btn-icon" data-close>&times;</button></div>
+    <form id="goal-form">
+      <div class="form-group"><label for="goal-input-name">Title *</label><input type="text" id="goal-input-name" class="text-input" required maxlength="60"></div>
+      <div class="form-group"><label for="goal-input-color">Color</label><input type="color" id="goal-input-color" value="#3b82f6" style="height:40px;border:none;border-radius:8px;width:100%;cursor:pointer;background:none;"></div>
+      <div class="form-actions">
+        <button type="button" class="btn-danger" id="delete-goal-btn" style="display:none;">Delete goal</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn-secondary" data-close>Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MEETING MODAL -->
+<div class="modal-overlay" id="meeting-modal">
+  <div class="modal-card">
+    <div class="modal-header"><h3>Add busy block</h3><button class="btn-icon" data-close>&times;</button></div>
+    <form id="meeting-form">
+      <div class="form-group"><label for="meeting-input-title">Title *</label><input type="text" id="meeting-input-title" class="text-input" required maxlength="100"></div>
+      <div class="form-group"><label for="meeting-input-date">Date</label><input type="date" id="meeting-input-date" class="text-input" required></div>
+      <div class="form-row">
+        <div class="form-group"><label for="meeting-input-start">Start</label><input type="time" id="meeting-input-start" class="text-input" value="10:00" required></div>
+        <div class="form-group"><label for="meeting-input-end">End</label><input type="time" id="meeting-input-end" class="text-input" value="11:00" required></div>
+      </div>
+      <label class="hint" style="display:flex;gap:.5rem;align-items:center;"><input type="checkbox" id="meeting-input-weekdays"> Repeat Monday to Friday for the next 4 weeks</label>
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" data-close>Cancel</button>
+        <button type="submit" class="btn-primary">Add</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal-card">
+    <div class="modal-header"><h3>Settings</h3><button class="btn-icon" data-close>&times;</button></div>
+    <div class="form-row">
+      <div class="form-group"><label for="setting-work-time">Work (min)</label><input type="number" id="setting-work-time" class="text-input" min="5" max="60"></div>
+      <div class="form-group"><label for="setting-long-every">Long break every</label><input type="number" id="setting-long-every" class="text-input" min="2" max="8"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="setting-short-break">Short break (min)</label><input type="number" id="setting-short-break" class="text-input" min="1" max="15"></div>
+      <div class="form-group"><label for="setting-long-break">Long break (min)</label><input type="number" id="setting-long-break" class="text-input" min="5" max="45"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="setting-work-start">Workday start</label><input type="time" id="setting-work-start" class="text-input"></div>
+      <div class="form-group"><label for="setting-work-end">Workday end</label><input type="time" id="setting-work-end" class="text-input"></div>
+    </div>
+    <div class="form-group"><label for="setting-buffer-time">Buffer before/after meetings (min)</label><input type="number" id="setting-buffer-time" class="text-input" min="0" max="30"></div>
+    <div class="divider">
+      <strong style="font-size:.9rem;">End-of-timer alarm</strong>
+      <div class="form-row">
+        <div class="form-group"><label for="setting-volume">Volume (<span id="volume-val">60</span>%)</label><input type="range" id="setting-volume" min="0" max="100" step="5"></div>
+        <div class="form-group"><label for="setting-repeats">Repeat sound</label><select id="setting-repeats" class="select-input"><option value="1">1 time</option><option value="3">3 times</option><option value="5">5 times</option></select></div>
+      </div>
+      <label class="hint" style="display:flex;gap:.5rem;align-items:center;"><input type="checkbox" id="setting-vibrate"> Vibrate (Android)</label>
+      <div class="form-actions" style="justify-content:flex-start;"><button type="button" class="btn-secondary btn-sm" id="test-sound-btn">🔔 Test alarm</button></div>
+      <span class="hint">Sound plays if the app is open (even in another tab). With the phone locked, you get a notification instead; on iPhone only if installed on the home screen.</span>
+    </div>
+    <div class="form-actions"><button type="button" class="btn-primary" id="save-settings-btn">Save settings</button></div>
+    <div class="divider">
+      <strong style="font-size:.9rem;">Backup</strong>
+      <span class="hint">Your data lives only in this browser. Export a backup regularly, and use Import to move it to another device.</span>
+      <div class="form-actions" style="justify-content:flex-start;">
+        <button type="button" class="btn-secondary btn-sm" id="export-data-btn">⬇ Export backup</button>
+        <label class="btn-secondary btn-sm" style="cursor:pointer;">⬆ Import backup<input type="file" id="import-data-input" accept="application/json,.json" style="display:none;"></label>
+      </div>
+      <span class="hint" id="last-backup-text"></span>
+    </div>
+    <div class="divider">
+      <button type="button" class="btn-danger" id="reset-all-btn">Delete all data</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* PomoPlan v2 */
+
+// ---------- Helpers ----------
+const pad = n => String(n).padStart(2, '0');
+const localDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const todayStr = () => localDate(new Date());
+const toMin = hhmm => { const [h, m] = String(hhmm || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+const fromMin = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+const addDays = (dateStr, n) => { const [y, m, d] = dateStr.split('-').map(Number); return localDate(new Date(y, m - 1, d + n)); };
+const uid = p => `${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const safeColor = c => /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : '#3b82f6';
+const fmtDate = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }); };
+
+const DEFAULT_SETTINGS = { workTime: 25, shortBreak: 5, longBreak: 15, longEvery: 4, workStart: '09:00', workEnd: '18:00', meetingBuffer: 5, gcalClientId: '', soundVolume: 60, soundRepeats: 3, vibrate: true };
+const KEY = 'pomoplan_v2';
+
+// ---------- Store ----------
+class Store {
+  constructor() {
+    const data = this.read() || this.migrateV1() || {};
+    this.goals = data.goals || [];
+    this.tasks = data.tasks || [];
+    this.busyBlocks = data.busyBlocks || [];
+    this.schedule = data.schedule || {};
+    this.settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
+    this.sessions = data.sessions || [];
+    this.reflections = data.reflections || {};
+    this.gcal = data.gcal || { token: null, expiresAt: 0, lastSync: null, consented: false };
+    this.activeTaskId = data.activeTaskId || null;
+    this.lastBackup = data.lastBackup || null;
+    this.prune();
+    this.save();
+  }
+  read() { try { const r = localStorage.getItem(KEY); return r ? JSON.parse(r) : null; } catch { return null; } }
+  migrateV1() {
+    // Brings goals, tasks, settings, sessions and reflections from the first version. Old time slots had no date, so they are dropped.
+    try {
+      const get = k => { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; };
+      const goals = get('pomoplan_goals'); const tasks = get('pomoplan_tasks');
+      if (!goals && !tasks) return null;
+      return {
+        goals: goals || [],
+        tasks: (tasks || []).map(t => ({ ...t, completedAt: t.status === 'COMPLETED' ? null : null })),
+        settings: get('pomoplan_settings') || {},
+        sessions: get('pomoplan_sessions') || [],
+        reflections: get('pomoplan_reflections') || {}
+      };
+    } catch { return null; }
+  }
+  prune() {
+    // Keep 60 days of plans and blocks so storage does not grow forever.
+    const cutoff = addDays(todayStr(), -60);
+    Object.keys(this.schedule).forEach(d => { if (d < cutoff) delete this.schedule[d]; });
+    this.busyBlocks = this.busyBlocks.filter(b => b.date && b.date >= cutoff);
+  }
+  snapshot() {
+    return { version: 2, goals: this.goals, tasks: this.tasks, busyBlocks: this.busyBlocks, schedule: this.schedule, settings: this.settings,
+      sessions: this.sessions, reflections: this.reflections, gcal: this.gcal, activeTaskId: this.activeTaskId, lastBackup: this.lastBackup };
+  }
+  save() {
+    try { localStorage.setItem(KEY, JSON.stringify(this.snapshot())); return true; }
+    catch (e) { console.warn('Save failed', e); return false; }
+  }
+}
+
+// ---------- Sound ----------
+class SoundManager {
+  init() { if (!this.ctx) { const A = window.AudioContext || window.webkitAudioContext; if (A) this.ctx = new A(); } if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); }
+  // kind: 'work' = focus finished (rising), 'break' = break finished (descending). Repeats `times` times.
+  alarm(kind = 'work', volume = 0.6, times = 3) {
+    try {
+      this.init(); if (!this.ctx || volume <= 0) return;
+      const notes = kind === 'work' ? [523.25, 659.25, 783.99, 1046.5] : [1046.5, 783.99, 659.25, 523.25];
+      for (let r = 0; r < times; r++) notes.forEach((f, i) => {
+        const t = this.ctx.currentTime + r * 1.1 + i * 0.14;
+        const o = this.ctx.createOscillator(), o2 = this.ctx.createOscillator(), g = this.ctx.createGain();
+        o.type = 'triangle'; o2.type = 'sine'; o.frequency.setValueAtTime(f, t); o2.frequency.setValueAtTime(f * 2, t);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(volume, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+        o.connect(g); o2.connect(g); g.connect(this.ctx.destination);
+        o.start(t); o2.start(t); o.stop(t + 0.65); o2.stop(t + 0.65);
+      });
+    } catch (e) { console.warn(e); }
+  }
+}
+
+// ---------- Calendar sync ----------
+class CalendarSync {
+  constructor(app) { this.app = app; this.tokenClient = null; }
+  get st() { return this.app.store; }
+  tokenValid() { return !!this.st.gcal.token && Date.now() < this.st.gcal.expiresAt - 60000; }
+  originOk() { return location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname); }
+
+  ensureClient() {
+    const clientId = this.st.settings.gcalClientId;
+    if (!clientId) return false;
+    if (typeof google === 'undefined' || !google.accounts?.oauth2) return false;
+    if (this.tokenClient && this.tokenClient._cid === clientId) return true;
+    this.tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/calendar.events.readonly',
+      callback: resp => {
+        if (resp.error) { this.app.toast('Google sign-in failed: ' + resp.error); return; }
+        this.st.gcal.token = resp.access_token;
+        this.st.gcal.expiresAt = Date.now() + (Number(resp.expires_in) || 3600) * 1000;
+        this.st.gcal.consented = true;
+        this.st.save();
+        this.fetchEvents();
+      }
+    });
+    this.tokenClient._cid = clientId;
+    return true;
+  }
+
+  connect() {
+    if (!this.originOk()) { this.app.toast('Google sign-in needs the app served from https or localhost. See setup guide.'); return; }
+    if (!this.st.settings.gcalClientId) { this.app.openGCalModal(); return; }
+    if (!this.ensureClient()) { this.app.toast('Google script not loaded yet or Client ID invalid. Try again in a few seconds.'); return; }
+    this.tokenClient.requestAccessToken({ prompt: this.st.gcal.consented ? '' : 'consent' });
+  }
+
+  syncOrConnect() { this.tokenValid() ? this.fetchEvents() : this.connect(); }
+
+  disconnect() {
+    const t = this.st.gcal.token;
+    if (t && typeof google !== 'undefined' && google.accounts?.oauth2) { try { google.accounts.oauth2.revoke(t, () => {}); } catch {} }
+    this.st.gcal = { token: null, expiresAt: 0, lastSync: null, consented: false };
+    this.st.busyBlocks = this.st.busyBlocks.filter(b => b.source !== 'gcal');
+    this.st.save(); this.app.render(); this.app.toast('Google Calendar disconnected.');
+  }
+
+  async fetchEvents(silent = false) {
+    if (!this.tokenValid()) { if (!silent) this.connect(); this.app.renderCalendarStatus(); return; }
+    const from = todayStr(), to = addDays(from, 8);
+    const [fy, fm, fd] = from.split('-').map(Number), [ty, tm, td] = to.split('-').map(Number);
+    const params = new URLSearchParams({
+      timeMin: new Date(fy, fm - 1, fd).toISOString(), timeMax: new Date(ty, tm - 1, td).toISOString(),
+      singleEvents: 'true', orderBy: 'startTime', maxResults: '250'
+    });
+    try {
+      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, { headers: { Authorization: `Bearer ${this.st.gcal.token}` } });
+      if (res.status === 401) { this.st.gcal.token = null; this.st.save(); this.app.renderCalendarStatus(); if (!silent) this.app.toast('Google session expired. Tap Sync to reconnect.'); return; }
+      if (!res.ok) { if (!silent) this.app.toast('Google Calendar error: ' + res.status); return; }
+      const data = await res.json();
+      const blocks = [];
+      (data.items || []).forEach(ev => {
+        if (!ev.start?.dateTime) return; // all-day events do not block focus time
+        if (ev.transparency === 'transparent' || ev.status === 'cancelled') return;
+        const me = (ev.attendees || []).find(a => a.self);
+        if (me && me.responseStatus === 'declined') return;
+        blocks.push(...this.splitToDays(ev.id, ev.summary || 'Busy', new Date(ev.start.dateTime), new Date(ev.end?.dateTime || ev.start.dateTime), 'gcal', ev.htmlLink));
+      });
+      this.st.busyBlocks = this.st.busyBlocks.filter(b => !(b.source === 'gcal' && b.date >= from && b.date < to)).concat(blocks);
+      this.st.gcal.lastSync = Date.now();
+      this.st.save(); this.app.render();
+      if (!silent) this.app.toast(`Synced ${blocks.length} events (today + 7 days).`);
+    } catch (e) { if (!silent) this.app.toast('Could not reach Google Calendar: ' + e.message); }
+  }
+
+  splitToDays(id, title, start, end, source, link = '') {
+    // Events crossing midnight are cut into one block per day.
+    const out = []; let cur = new Date(start);
+    if (end <= start) end = new Date(start.getTime() + 30 * 60000);
+    let i = 0;
+    while (cur < end && i < 14) {
+      const dayEnd = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+      const segEnd = end < dayEnd ? end : dayEnd;
+      const endStr = segEnd.getTime() === dayEnd.getTime() ? '24:00' : `${pad(segEnd.getHours())}:${pad(segEnd.getMinutes())}`;
+      out.push({ id: `${source}-${id}-${i}`, title, date: localDate(cur), start: `${pad(cur.getHours())}:${pad(cur.getMinutes())}`, end: endStr, source, link });
+      cur = segEnd; i++;
+    }
+    return out;
+  }
+
+  parseICS(text) {
+    const unfolded = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n[ \t]/g, '');
+    const lines = unfolded.split('\n');
+    const from = todayStr(), to = addDays(from, 30);
+    const events = []; let cur = null, recurring = 0, allDay = 0;
+
+    const parseVal = (line) => {
+      const idx = line.indexOf(':'); const head = line.slice(0, idx); const val = line.slice(idx + 1).trim();
+      const params = head.split(';').slice(1).reduce((a, p) => { const [k, v] = p.split('='); a[k.toUpperCase()] = v; return a; }, {});
+      return { val, params };
+    };
+    const parseDate = ({ val, params }) => {
+      if (params.VALUE === 'DATE' || /^\d{8}$/.test(val)) return { allDay: true };
+      const m = val.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z?)$/);
+      if (!m) return null;
+      const [, y, mo, d, h, mi, s, z] = m;
+      // UTC times are converted to local. TZID times are treated as local (correct when the calendar is in your own time zone).
+      const date = z ? new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +(s || 0))) : new Date(+y, +mo - 1, +d, +h, +mi, +(s || 0));
+      return { date };
+    };
+
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (line === 'BEGIN:VEVENT') { cur = {}; continue; }
+      if (line === 'END:VEVENT') { if (cur) events.push(cur); cur = null; continue; }
+      if (!cur) continue;
+      const key = line.split(/[;:]/)[0].toUpperCase();
+      if (key === 'SUMMARY') cur.title = parseVal(line).val.replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/gi, ' ');
+      else if (key === 'DTSTART') cur.start = parseDate(parseVal(line));
+      else if (key === 'DTEND') cur.end = parseDate(parseVal(line));
+      else if (key === 'DURATION') cur.duration = parseVal(line).val;
+      else if (key === 'RRULE') cur.rrule = true;
+      else if (key === 'TRANSP') cur.transparent = parseVal(line).val === 'TRANSPARENT';
+      else if (key === 'STATUS') cur.cancelled = parseVal(line).val === 'CANCELLED';
+      else if (key === 'UID') cur.uid = parseVal(line).val;
+    }
+
+    const blocks = [];
+    events.forEach((ev, i) => {
+      if (!ev.start || ev.transparent || ev.cancelled) return;
+      if (ev.start.allDay) { allDay++; return; }
+      if (ev.rrule) recurring++;
+      let end = ev.end?.date;
+      if (!end && ev.duration) {
+        const m = ev.duration.match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?/);
+        if (m) end = new Date(ev.start.date.getTime() + (((+m[1] || 0) * 24 + (+m[2] || 0)) * 60 + (+m[3] || 0)) * 60000);
+      }
+      end = end || new Date(ev.start.date.getTime() + 30 * 60000);
+      const d = localDate(ev.start.date);
+      if (d < from || d > to) return;
+      blocks.push(...this.splitToDays(ev.uid || i, ev.title || 'Busy', ev.start.date, end, 'ics'));
+    });
+
+    this.st.busyBlocks = this.st.busyBlocks.filter(b => !(b.source === 'ics' && b.date >= from && b.date <= to)).concat(blocks);
+    this.st.save(); this.app.render();
+    let msg = `Imported ${blocks.length} events for the next 30 days.`;
+    if (recurring) msg += ` ${recurring} recurring series only show their first date; use Google sync for those.`;
+    if (allDay) msg += ` ${allDay} all-day events skipped.`;
+    this.app.toast(msg, 7000);
+  }
+}
+
+// ---------- App ----------
+class App {
+  constructor() {
+    this.store = new Store();
+    this.sound = new SoundManager();
+    this.calendar = new CalendarSync(this);
+    this.viewDate = todayStr();
+    this.currentMode = 'work';
+    this.isRunning = false;
+    this.endAt = 0;
+    this.remaining = this.store.settings.workTime * 60;
+    this.totalDuration = this.remaining;
+    this.sessionInterruptions = 0;
+    this.editingTaskId = null;
+    this.editingGoalId = null;
+    this.pendingProposal = null;
+    this.lastRenderDay = todayStr();
+    if (!this.findTask(this.store.activeTaskId)) this.store.activeTaskId = this.pendingTasks()[0]?.id || null;
+
+    this.$ = id => document.getElementById(id);
+    this.bind();
+    this.setTimerMode('work');
+    this.render();
+
+    // Background refresh: day rollover, meeting indicator, Google sync every 15 min while access is valid.
+    setInterval(() => this.minuteTick(), 30000);
+    setInterval(() => { if (document.visibilityState === 'visible' && this.calendar.tokenValid()) this.calendar.fetchEvents(true); }, 15 * 60000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { this.tick(); this.minuteTick(); } });
+    window.addEventListener('load', () => setTimeout(() => { if (this.calendar.tokenValid()) this.calendar.fetchEvents(true); }, 800));
+    window.addEventListener('beforeunload', e => { if (this.isRunning) { e.preventDefault(); e.returnValue = ''; } });
+  }
+
+  // ----- data helpers -----
+  findTask(id) { return this.store.tasks.find(t => t.id === id) || null; }
+  findGoal(id) { return this.store.goals.find(g => g.id === id) || null; }
+  get activeTask() { return this.findTask(this.store.activeTaskId); }
+  pendingTasks() { return this.store.tasks.filter(t => t.status !== 'COMPLETED').sort((a, b) => b.priority - a.priority || (a.dueDate || '9999').localeCompare(b.dueDate || '9999')); }
+  remainingPomos(t) { return Math.max(0, (t.estPomodoros || 1) - (t.completedPomodoros || 0)); }
+  blocksFor(date) { return this.store.busyBlocks.filter(b => b.date === date).sort((a, b) => toMin(a.start) - toMin(b.start)); }
+  daySchedule(date) { return this.store.schedule[date] || {}; }
+  todaySessions() { const t = todayStr(); return this.store.sessions.filter(s => s.date === t); }
+  persist() { this.store.save(); }
+
+  toast(msg, ms = 4000) {
+    const el = this.$('toast'); el.textContent = msg; el.classList.add('show');
+    clearTimeout(this._toastT); this._toastT = setTimeout(() => el.classList.remove('show'), ms);
+  }
+
+  // ----- events -----
+  bind() {
+    document.querySelectorAll('.nav-tab').forEach(tab => tab.addEventListener('click', () => {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+      tab.classList.add('active'); this.$(tab.dataset.tab).classList.add('active'); this.render();
+    }));
+    document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('.modal-overlay').classList.remove('active')));
+    document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) { m.classList.remove('active'); if (m.id === 'alarm-overlay') this.dismissAlarm(); } }));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')); this.dismissAlarm(); } });
+
+    // timer
+    this.$('timer-start-btn').addEventListener('click', () => this.toggleTimer());
+    this.$('timer-reset-btn').addEventListener('click', () => { this.sessionInterruptions = 0; this.setTimerMode(this.currentMode); });
+    this.$('timer-skip-btn').addEventListener('click', () => this.advancePhase(false));
+    document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', () => {
+      if (this.isRunning && !confirm('Timer is running. Switch mode and lose this session?')) return;
+      this.setTimerMode(b.dataset.mode);
+    }));
+    this.$('log-interruption-btn').addEventListener('click', () => { this.sessionInterruptions++; this.$('session-interruptions-count').textContent = this.sessionInterruptions; });
+
+    // tasks & goals
+    this.$('new-task-btn').addEventListener('click', () => this.openTaskModal());
+    this.$('quick-add-task-btn').addEventListener('click', () => this.openTaskModal());
+    this.$('task-form').addEventListener('submit', e => { e.preventDefault(); this.saveTask(); });
+    this.$('delete-task-btn').addEventListener('click', () => { if (this.editingTaskId) this.deleteTask(this.editingTaskId, true); });
+    this.$('new-goal-btn').addEventListener('click', () => this.openGoalModal());
+    this.$('goal-form').addEventListener('submit', e => { e.preventDefault(); this.saveGoal(); });
+    this.$('delete-goal-btn').addEventListener('click', () => { if (this.editingGoalId) this.deleteGoal(this.editingGoalId); });
+    ['filter-goal', 'filter-priority', 'filter-status'].forEach(id => this.$(id).addEventListener('change', () => this.renderTasksList()));
+
+    // planner
+    this.$('view-date-input').addEventListener('change', e => { if (e.target.value) { this.viewDate = e.target.value; this.renderPlanner(); } });
+    this.$('prev-day-btn').addEventListener('click', () => { this.viewDate = addDays(this.viewDate, -1); this.renderPlanner(); });
+    this.$('next-day-btn').addEventListener('click', () => { this.viewDate = addDays(this.viewDate, 1); this.renderPlanner(); });
+    this.$('today-btn').addEventListener('click', () => { this.viewDate = todayStr(); this.renderPlanner(); });
+    this.$('add-meeting-block-btn').addEventListener('click', () => { this.$('meeting-input-date').value = this.viewDate; this.open('meeting-modal'); });
+    this.$('meeting-form').addEventListener('submit', e => { e.preventDefault(); this.saveMeeting(); });
+    this.$('auto-schedule-btn').addEventListener('click', () => this.generateProposal());
+    this.$('apply-proposal-btn').addEventListener('click', () => this.applyProposal());
+    this.$('clear-plan-btn').addEventListener('click', () => {
+      if (!Object.keys(this.daySchedule(this.viewDate)).length) return;
+      if (confirm(`Clear all planned focus slots for ${fmtDate(this.viewDate)}?`)) { delete this.store.schedule[this.viewDate]; this.persist(); this.renderPlanner(); }
+    });
+
+    // calendar
+    this.$('gcal-status-btn').addEventListener('click', () => this.openGCalModal());
+    this.$('sync-gcal-btn').addEventListener('click', () => this.calendar.syncOrConnect());
+    this.$('gcal-connect-auth-btn').addEventListener('click', () => {
+      const id = this.$('gcal-client-id').value.trim();
+      if (id !== this.store.settings.gcalClientId) this.store.gcal.consented = false;
+      this.store.settings.gcalClientId = id; this.persist(); this.close('gcal-modal'); this.calendar.connect();
+    });
+    this.$('gcal-disconnect-btn').addEventListener('click', () => { this.close('gcal-modal'); this.calendar.disconnect(); });
+    this.$('ics-file-input').addEventListener('change', e => {
+      const f = e.target.files[0]; if (!f) return;
+      const r = new FileReader(); r.onload = ev => { this.calendar.parseICS(String(ev.target.result)); e.target.value = ''; }; r.readAsText(f);
+    });
+
+    // settings & data
+    this.$('open-settings-btn').addEventListener('click', () => this.openSettings());
+    this.$('save-settings-btn').addEventListener('click', () => this.saveSettings());
+    this.$('setting-volume').addEventListener('input', e => this.$('volume-val').textContent = e.target.value);
+    this.$('test-sound-btn').addEventListener('click', () => {
+      this.sound.alarm('work', (parseInt(this.$('setting-volume').value, 10) || 0) / 100 * 0.8, 1);
+      if (this.$('setting-vibrate').checked && navigator.vibrate) navigator.vibrate([300, 150, 300]);
+      if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+    });
+    this.$('alarm-dismiss-btn').addEventListener('click', () => this.dismissAlarm());
+    this.$('alarm-start-next-btn').addEventListener('click', () => { this.dismissAlarm(); if (!this.isRunning) this.toggleTimer(); });
+    this.$('export-data-btn').addEventListener('click', () => this.exportData());
+    this.$('import-data-input').addEventListener('change', e => this.importData(e));
+    this.$('reset-all-btn').addEventListener('click', () => {
+      if (!confirm('Delete ALL tasks, goals, plans and history in this browser? Export a backup first if unsure.')) return;
+      localStorage.removeItem(KEY); ['pomoplan_goals', 'pomoplan_tasks', 'pomoplan_busy_blocks', 'pomoplan_scheduled_slots', 'pomoplan_settings', 'pomoplan_sessions', 'pomoplan_reflections', 'pomoplan_gcal_token'].forEach(k => localStorage.removeItem(k));
+      location.reload();
+    });
+    this.$('save-reflection-btn').addEventListener('click', () => {
+      this.store.reflections[todayStr()] = this.$('daily-reflection-note').value.trim(); this.persist(); this.toast('Reflection saved.');
+    });
+  }
+
+  open(id) { this.$(id).classList.add('active'); }
+  close(id) { this.$(id).classList.remove('active'); }
+
+  // ----- modals -----
+  fillGoalSelect(sel, withAll = false) {
+    const prev = sel.value;
+    sel.innerHTML = withAll ? '<option value="ALL">All goals</option><option value="NONE">No goal</option>' : '<option value="">No goal</option>';
+    this.store.goals.forEach(g => { const o = document.createElement('option'); o.value = g.id; o.textContent = g.title; sel.appendChild(o); });
+    if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  }
+
+  openTaskModal(task = null) {
+    this.editingTaskId = task?.id || null;
+    this.fillGoalSelect(this.$('task-input-goal'));
+    this.$('task-modal-title').textContent = task ? 'Edit task' : 'Add task';
+    this.$('task-input-title').value = task?.title || '';
+    this.$('task-input-goal').value = task?.goalId || '';
+    this.$('task-input-priority').value = String(task?.priority || 3);
+    this.$('task-input-pomos').value = task?.estPomodoros || 2;
+    this.$('task-input-due').value = task?.dueDate || '';
+    this.$('task-input-done').value = task?.completedPomodoros || 0;
+    this.$('task-done-pomos-group').style.display = task ? 'flex' : 'none';
+    this.$('delete-task-btn').style.display = task ? 'inline-flex' : 'none';
+    this.open('task-modal'); setTimeout(() => this.$('task-input-title').focus(), 50);
+  }
+
+  saveTask() {
+    const title = this.$('task-input-title').value.trim(); if (!title) return;
+    const fields = {
+      title, goalId: this.$('task-input-goal').value || null,
+      priority: parseInt(this.$('task-input-priority').value, 10) || 2,
+      estPomodoros: Math.max(1, parseInt(this.$('task-input-pomos').value, 10) || 1),
+      dueDate: this.$('task-input-due').value || ''
+    };
+    if (this.editingTaskId) {
+      const t = this.findTask(this.editingTaskId); if (!t) return;
+      Object.assign(t, fields, { completedPomodoros: Math.max(0, parseInt(this.$('task-input-done').value, 10) || 0) });
+      Object.values(this.store.schedule).forEach(day => Object.values(day).forEach(s => { if (s.taskId === t.id) s.taskTitle = t.title; }));
+    } else {
+      const t = { id: uid('task'), ...fields, completedPomodoros: 0, status: 'TODO', completedAt: null, createdAt: todayStr() };
+      this.store.tasks.unshift(t);
+      if (!this.activeTask) this.store.activeTaskId = t.id;
+    }
+    this.persist(); this.close('task-modal'); this.render();
+  }
+
+  deleteTask(id, fromModal = false) {
+    const t = this.findTask(id); if (!t) return;
+    if (!confirm(`Delete task "${t.title}"? Its planned slots will be removed.`)) return;
+    this.store.tasks = this.store.tasks.filter(x => x.id !== id);
+    Object.values(this.store.schedule).forEach(day => Object.keys(day).forEach(k => { if (day[k].taskId === id) delete day[k]; }));
+    if (this.store.activeTaskId === id) this.store.activeTaskId = this.pendingTasks()[0]?.id || null;
+    this.persist(); if (fromModal) this.close('task-modal'); this.render();
+  }
+
+  toggleTaskCompletion(id) {
+    const t = this.findTask(id); if (!t) return;
+    if (t.status === 'COMPLETED') { t.status = 'TODO'; t.completedAt = null; }
+    else { t.status = 'COMPLETED'; t.completedAt = todayStr(); if (this.store.activeTaskId === id) this.store.activeTaskId = this.pendingTasks().find(x => x.id !== id)?.id || null; }
+    this.persist(); this.render();
+  }
+
+  openGoalModal(goal = null) {
+    this.editingGoalId = goal?.id || null;
+    this.$('goal-modal-title').textContent = goal ? 'Edit goal' : 'New goal';
+    this.$('goal-input-name').value = goal?.title || '';
+    this.$('goal-input-color').value = goal?.color || '#3b82f6';
+    this.$('delete-goal-btn').style.display = goal ? 'inline-flex' : 'none';
+    this.open('goal-modal'); setTimeout(() => this.$('goal-input-name').focus(), 50);
+  }
+
+  saveGoal() {
+    const title = this.$('goal-input-name').value.trim(); if (!title) return;
+    const color = safeColor(this.$('goal-input-color').value);
+    if (this.editingGoalId) Object.assign(this.findGoal(this.editingGoalId), { title, color });
+    else this.store.goals.push({ id: uid('goal'), title, color });
+    this.persist(); this.close('goal-modal'); this.render();
+  }
+
+  deleteGoal(id) {
+    const g = this.findGoal(id); if (!g) return;
+    const n = this.store.tasks.filter(t => t.goalId === id).length;
+    if (!confirm(`Delete goal "${g.title}"?${n ? ` ${n} task(s) will stay, without goal.` : ''}`)) return;
+    this.store.goals = this.store.goals.filter(x => x.id !== id);
+    this.store.tasks.forEach(t => { if (t.goalId === id) t.goalId = null; });
+    this.persist(); this.close('goal-modal'); this.render();
+  }
+
+  saveMeeting() {
+    const title = this.$('meeting-input-title').value.trim(), date = this.$('meeting-input-date').value;
+    const start = this.$('meeting-input-start').value, end = this.$('meeting-input-end').value;
+    if (!title || !date || !start || !end) return;
+    if (toMin(end) <= toMin(start)) { this.toast('End time must be after start time.'); return; }
+    const dates = [date];
+    if (this.$('meeting-input-weekdays').checked) {
+      for (let i = 1; i < 28; i++) { const d = addDays(date, i); const wd = new Date(d + 'T12:00').getDay(); if (wd >= 1 && wd <= 5) dates.push(d); }
+    }
+    const series = uid('series');
+    dates.forEach(d => this.store.busyBlocks.push({ id: uid('block'), series, title, date: d, start, end, source: 'manual' }));
+    this.persist(); this.$('meeting-form').reset(); this.close('meeting-modal'); this.renderPlanner(); this.renderHeader();
+  }
+
+  deleteBlock(id) {
+    const b = this.store.busyBlocks.find(x => x.id === id); if (!b) return;
+    const seriesCount = b.series ? this.store.busyBlocks.filter(x => x.series === b.series && x.date >= b.date).length : 1;
+    if (seriesCount > 1 && confirm(`"${b.title}" repeats. OK = delete this and all following, Cancel = only this day.`)) {
+      this.store.busyBlocks = this.store.busyBlocks.filter(x => !(x.series === b.series && x.date >= b.date));
+    } else {
+      this.store.busyBlocks = this.store.busyBlocks.filter(x => x.id !== id);
+    }
+    this.persist(); this.renderPlanner();
+  }
+
+  openGCalModal() { this.$('gcal-client-id').value = this.store.settings.gcalClientId || ''; this.open('gcal-modal'); }
+
+  openSettings() {
+    const s = this.store.settings;
+    this.$('setting-work-time').value = s.workTime; this.$('setting-short-break').value = s.shortBreak; this.$('setting-long-break').value = s.longBreak;
+    this.$('setting-long-every').value = s.longEvery; this.$('setting-work-start').value = s.workStart; this.$('setting-work-end').value = s.workEnd;
+    this.$('setting-buffer-time').value = s.meetingBuffer;
+    this.$('setting-volume').value = s.soundVolume; this.$('volume-val').textContent = s.soundVolume;
+    this.$('setting-repeats').value = String(s.soundRepeats); this.$('setting-vibrate').checked = !!s.vibrate;
+    this.$('last-backup-text').textContent = this.store.lastBackup ? `Last backup: ${new Date(this.store.lastBackup).toLocaleString()}` : 'No backup exported yet.';
+    this.open('settings-modal');
+  }
+
+  saveSettings() {
+    const n = (id, def, min, max) => Math.min(max, Math.max(min, parseInt(this.$(id).value, 10) || def));
+    const start = this.$('setting-work-start').value || '09:00', end = this.$('setting-work-end').value || '18:00';
+    if (toMin(end) <= toMin(start)) { this.toast('Workday end must be after start.'); return; }
+    Object.assign(this.store.settings, {
+      workTime: n('setting-work-time', 25, 5, 60), shortBreak: n('setting-short-break', 5, 1, 15), longBreak: n('setting-long-break', 15, 5, 45),
+      longEvery: n('setting-long-every', 4, 2, 8), workStart: start, workEnd: end, meetingBuffer: n('setting-buffer-time', 0, 0, 30),
+      soundVolume: Math.min(100, Math.max(0, parseInt(this.$('setting-volume').value, 10) || 0)), soundRepeats: parseInt(this.$('setting-repeats').value, 10) || 3, vibrate: this.$('setting-vibrate').checked
+    });
+    this.persist(); this.close('settings-modal');
+    if (!this.isRunning) this.setTimerMode(this.currentMode);
+    this.render(); this.toast('Settings saved.');
+  }
+
+  exportData() {
+    const snap = this.store.snapshot(); const copy = { ...snap, gcal: { ...snap.gcal, token: null, expiresAt: 0 } };
+    const blob = new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `pomoplan-backup-${todayStr()}.json`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    this.store.lastBackup = Date.now(); this.persist();
+    this.$('last-backup-text').textContent = `Last backup: ${new Date().toLocaleString()}`;
+  }
+
+  importData(e) {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      try {
+        const d = JSON.parse(String(ev.target.result));
+        if (!Array.isArray(d.tasks) || !Array.isArray(d.goals)) throw new Error('Not a PomoPlan backup');
+        if (!confirm(`Replace current data with backup (${d.tasks.length} tasks, ${d.goals.length} goals)?`)) return;
+        localStorage.setItem(KEY, JSON.stringify({ ...d, gcal: this.store.gcal }));
+        location.reload();
+      } catch (err) { this.toast('Import failed: ' + err.message); }
+      e.target.value = '';
+    };
+    r.readAsText(f);
+  }
+
+  // ----- timer -----
+  durationFor(mode) { const s = this.store.settings; return (mode === 'work' ? s.workTime : mode === 'shortBreak' ? s.shortBreak : s.longBreak) * 60; }
+
+  setTimerMode(mode) {
+    this.stopInterval(); this.isRunning = false;
+    this.currentMode = mode;
+    this.remaining = this.totalDuration = this.durationFor(mode);
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    const s = this.store.settings;
+    document.querySelector('[data-mode="work"]').textContent = `Work (${s.workTime}m)`;
+    document.querySelector('[data-mode="shortBreak"]').textContent = `Short (${s.shortBreak}m)`;
+    document.querySelector('[data-mode="longBreak"]').textContent = `Long (${s.longBreak}m)`;
+    const cfg = { work: ['Deep Focus', 'var(--accent-rose)'], shortBreak: ['Short Break', 'var(--accent-emerald)'], longBreak: ['Long Break', 'var(--accent-blue)'] }[mode];
+    this.$('timer-mode-label').textContent = cfg[0]; this.$('timer-progress-ring').style.stroke = cfg[1];
+    this.sessionInterruptions = 0; this.$('session-interruptions-count').textContent = '0';
+    this.updateTimerUI();
+  }
+
+  toggleTimer() {
+    this.sound.init();
+    if (this.isRunning) {
+      this.remaining = Math.max(0, Math.ceil((this.endAt - Date.now()) / 1000));
+      this.isRunning = false; this.stopInterval(); this.updateTimerUI();
+    } else {
+      if (this.currentMode === 'work' && !this.activeTask && this.pendingTasks().length) this.toast('Tip: pick a task in the queue so this pomodoro counts toward it.');
+      if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+      this.dismissAlarm();
+      this.endAt = Date.now() + this.remaining * 1000; this.isRunning = true;
+      this.interval = setInterval(() => this.tick(), 500); this.updateTimerUI();
+    }
+  }
+
+  stopInterval() { clearInterval(this.interval); this.interval = null; }
+
+  tick() {
+    if (!this.isRunning) return;
+    this.remaining = Math.max(0, Math.ceil((this.endAt - Date.now()) / 1000));
+    this.updateTimerUI();
+    if (this.remaining <= 0) this.advancePhase(true);
+  }
+
+  advancePhase(finished) {
+    const wasWork = this.currentMode === 'work';
+    this.stopInterval(); this.isRunning = false;
+    if (finished) this.ring(wasWork);
+    if (wasWork && finished) {
+      const t = this.activeTask;
+      this.store.sessions.push({ id: uid('session'), taskId: t?.id || null, goalId: t?.goalId || null, date: todayStr(), durationMins: this.store.settings.workTime, interruptions: this.sessionInterruptions });
+      if (t) {
+        t.completedPomodoros = (t.completedPomodoros || 0) + 1;
+        if (t.completedPomodoros >= t.estPomodoros) {
+          if (confirm(`"${t.title}" reached its estimate (${t.estPomodoros}). Mark as completed?\nCancel adds one more pomodoro to the estimate.`)) {
+            t.status = 'COMPLETED'; t.completedAt = todayStr(); this.store.activeTaskId = this.pendingTasks()[0]?.id || null;
+          } else t.estPomodoros = t.completedPomodoros + 1;
+        }
+      }
+      this.persist();
+    }
+    let next = 'work';
+    if (wasWork) { const n = this.todaySessions().length; next = finished && n > 0 && n % this.store.settings.longEvery === 0 ? 'longBreak' : 'shortBreak'; }
+    this.setTimerMode(next);
+    this.render();
+  }
+
+  ring(wasWork) {
+    const s = this.store.settings, msg = wasWork ? 'Pomodoro done. Take a break.' : 'Break over. Back to focus.';
+    this.sound.alarm(wasWork ? 'work' : 'break', (s.soundVolume ?? 60) / 100 * 0.8, s.soundRepeats || 3);
+    if (s.vibrate && navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]);
+    this.notify(msg);
+    this.$('alarm-title').textContent = wasWork ? '🍅 Time is up' : '☕ Break is over';
+    this.$('alarm-text').textContent = msg;
+    this.$('alarm-overlay').classList.add('active');
+    clearInterval(this.blinkT); let on = false;
+    this.blinkT = setInterval(() => { on = !on; document.title = on ? '⏰ TIME IS UP' : 'PomoPlan'; }, 900);
+  }
+
+  dismissAlarm() {
+    this.$('alarm-overlay').classList.remove('active');
+    clearInterval(this.blinkT); this.blinkT = null; document.title = 'PomoPlan';
+  }
+
+  notify(text) {
+    try {
+      if ('Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+        if (navigator.serviceWorker?.controller) navigator.serviceWorker.ready.then(r => r.showNotification('PomoPlan', { body: text, icon: 'icon-192.png', vibrate: [400, 200, 400], requireInteraction: true, tag: 'pomoplan-timer', renotify: true }));
+        else new Notification('PomoPlan', { body: text, icon: 'icon-192.png', requireInteraction: true, tag: 'pomoplan-timer' });
+      }
+    } catch {}
+  }
+
+  updateTimerUI() {
+    const t = this.remaining, str = `${pad(Math.floor(t / 60))}:${pad(t % 60)}`;
+    this.$('timer-display').textContent = str;
+    if (!this.blinkT) document.title = this.isRunning ? `(${str}) PomoPlan` : 'PomoPlan';
+    const c = 2 * Math.PI * 110; this.$('timer-progress-ring').style.strokeDashoffset = c * (1 - (this.totalDuration ? t / this.totalDuration : 0));
+    this.$('start-btn-label').textContent = this.isRunning ? 'Pause' : (t < this.totalDuration ? 'Resume' : (this.currentMode === 'work' ? 'Start Focus' : 'Start Break'));
+    this.$('timer-start-btn').style.backgroundColor = this.isRunning ? 'var(--accent-amber)' : '';
+  }
+
+  minuteTick() {
+    if (todayStr() !== this.lastRenderDay) {
+      // Day changed while the app was open: move the planner to the new day if it was showing "today".
+      if (this.viewDate === this.lastRenderDay) this.viewDate = todayStr();
+      this.lastRenderDay = todayStr(); this.render();
+    }
+    this.updateNextMeeting(); this.renderCalendarStatus();
+    if (this.$('planner-view').classList.contains('active') && this.viewDate === todayStr()) this.renderPlanner();
+  }
+
+  // ----- auto plan -----
+  slotInfo(date) {
+    const s = this.store.settings, startM = toMin(s.workStart), endM = toMin(s.workEnd), buf = s.meetingBuffer || 0;
+    const blocks = this.blocksFor(date), sched = this.daySchedule(date), slots = [];
+    const nowM = date === todayStr() ? new Date().getHours() * 60 + new Date().getMinutes() : (date < todayStr() ? 24 * 60 : -1);
+    for (let m = startM; m < endM; m += 30) {
+      const e = Math.min(m + 30, endM), time = fromMin(m);
+      const meeting = blocks.find(b => toMin(b.start) < e && toMin(b.end) > m);
+      const buffer = !meeting && buf ? blocks.find(b => toMin(b.start) - buf < e && toMin(b.end) + buf > m) : null;
+      slots.push({ time, m, e, meeting, buffer, scheduled: sched[time] || null, past: e <= nowM });
+    }
+    return slots;
+  }
+
+  generateProposal() {
+    const date = this.viewDate;
+    if (date < todayStr()) { this.toast('Pick today or a future date to plan.'); return; }
+    const free = this.slotInfo(date).filter(s => !s.meeting && !s.buffer && !s.scheduled && !s.past && s.e - s.m >= Math.min(25, this.store.settings.workTime));
+    if (!free.length) { this.toast('No free slots left in your workday for this date.'); return; }
+    const already = {}; Object.values(this.daySchedule(date)).forEach(v => already[v.taskId] = (already[v.taskId] || 0) + 1);
+    const today = todayStr();
+    const ranked = this.pendingTasks().map(t => {
+      let score = t.priority * 15 + (t.goalId ? 5 : 0);
+      if (t.dueDate) { if (t.dueDate < date) score += 40; else if (t.dueDate === date) score += 30; else if (t.dueDate <= addDays(date, 2)) score += 15; }
+      return { t, score, need: this.remainingPomos(t) - (already[t.id] || 0) };
+    }).filter(x => x.need > 0).sort((a, b) => b.score - a.score);
+    if (!ranked.length) { this.toast('All pending tasks are already planned for this day.'); return; }
+    const proposal = {}, list = []; let i = 0;
+    ranked.forEach(({ t, need }) => { for (let k = 0; k < need && i < free.length; k++, i++) { proposal[free[i].time] = { taskId: t.id, taskTitle: t.title }; list.push({ time: free[i].time, t, k: k + 1, need }); } });
+    this.pendingProposal = { date, proposal };
+    const unplanned = ranked.reduce((a, x) => a + x.need, 0) - list.length;
+    this.$('proposal-summary-stats').innerHTML = `<div><strong>${esc(fmtDate(date))}</strong>: ${free.length} free slots (${(free.length / 2).toFixed(1)}h).</div>
+      <div>Proposed: ${list.length} pomodoros.${unplanned > 0 ? ` <span class="overdue">${unplanned} pomodoros do not fit today.</span>` : ''}</div>`;
+    this.$('proposal-items-list').innerHTML = list.map(x => `<div class="proposal-item"><div><span class="proposal-time-pill">${x.time}</span><strong>${esc(x.t.title)}</strong> (${x.k}/${x.need})</div><span class="priority-pill priority-${x.t.priority}">P${x.t.priority}</span></div>`).join('');
+    this.open('proposal-modal');
+  }
+
+  applyProposal() {
+    if (!this.pendingProposal) return;
+    const { date, proposal } = this.pendingProposal;
+    this.store.schedule[date] = { ...this.daySchedule(date), ...proposal };
+    this.pendingProposal = null; this.persist(); this.close('proposal-modal'); this.renderPlanner();
+  }
+
+  assignSlot(date, time, taskId) {
+    const t = this.findTask(taskId); if (!t) return;
+    this.store.schedule[date] = this.store.schedule[date] || {};
+    this.store.schedule[date][time] = { taskId: t.id, taskTitle: t.title };
+    this.persist(); this.renderPlanner();
+  }
+
+  // ----- rendering -----
+  render() {
+    this.renderHeader(); this.renderCalendarStatus(); this.renderActiveTask(); this.renderFocusQueue();
+    this.renderGoals(); this.renderTasksList(); this.renderPlanner(); this.renderAnalytics(); this.updateNextMeeting();
+  }
+
+  renderHeader() {
+    const left = this.pendingTasks().reduce((a, t) => a + this.remainingPomos(t), 0);
+    this.$('header-pomo-count').textContent = `${this.todaySessions().length} done · ${left} left`;
+  }
+
+  renderCalendarStatus() {
+    const pill = this.$('gcal-status-btn'), txt = this.$('gcal-status-text'), g = this.store.gcal;
+    const imported = this.store.busyBlocks.some(b => b.source === 'ics' && b.date >= todayStr());
+    if (this.calendar.tokenValid()) { pill.className = 'gcal-status-pill connected'; txt.textContent = 'Google: live'; }
+    else if (g.consented) { pill.className = 'gcal-status-pill expired'; txt.textContent = 'Google: reconnect'; }
+    else if (imported) { pill.className = 'gcal-status-pill connected'; txt.textContent = 'Calendar: .ics'; }
+    else { pill.className = 'gcal-status-pill disconnected'; txt.textContent = 'Calendar: offline'; }
+    const ls = this.$('last-sync-text');
+    if (ls) ls.textContent = g.lastSync ? `Last Google sync: ${new Date(g.lastSync).toLocaleString()}${this.calendar.tokenValid() ? ' (auto every 15 min)' : ''}` : '';
+  }
+
+  renderActiveTask() {
+    const t = this.activeTask;
+    if (!t) { this.$('active-task-goal').textContent = 'No active task'; this.$('active-task-goal').style.color = ''; this.$('active-task-title').textContent = 'Pick a task from the queue'; this.$('active-task-pomos').textContent = '🍅 0/0'; return; }
+    const g = this.findGoal(t.goalId);
+    this.$('active-task-goal').textContent = g ? g.title : 'No goal';
+    this.$('active-task-goal').style.color = g ? safeColor(g.color) : '';
+    this.$('active-task-title').textContent = t.title;
+    this.$('active-task-pomos').textContent = `🍅 ${t.completedPomodoros || 0}/${t.estPomodoros}`;
+  }
+
+  taskEl(t, { draggable = false, editable = false } = {}) {
+    const el = document.createElement('div');
+    el.className = 'task-item' + (t.status === 'COMPLETED' ? ' completed' : '') + (t.id === this.store.activeTaskId ? ' active-selection' : '');
+    const g = this.findGoal(t.goalId), overdue = t.dueDate && t.status !== 'COMPLETED' && t.dueDate < todayStr();
+    el.innerHTML = `
+      <div class="task-left">
+        <button class="task-check-btn" title="Toggle done">✓</button>
+        <div class="task-details">
+          <span class="task-text">${esc(t.title)}</span>
+          <div class="task-meta-row">
+            ${g ? `<span class="goal-tag" style="background:${safeColor(g.color)}">${esc(g.title)}</span>` : ''}
+            <span class="priority-pill priority-${t.priority}">P${t.priority}</span>
+            ${t.dueDate ? `<span class="${overdue ? 'overdue' : ''}" style="color:var(--text-muted)">${overdue ? 'Overdue' : 'Due'}: ${esc(fmtDate(t.dueDate))}</span>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="task-right">
+        <span class="pomo-badge">🍅 ${t.completedPomodoros || 0}/${t.estPomodoros}</span>
+        ${editable ? '<button class="btn-icon" data-edit title="Edit">✎</button><button class="btn-icon danger" data-del title="Delete">&times;</button>' : ''}
+      </div>`;
+    el.addEventListener('click', e => { if (e.target.closest('button')) return; if (t.status !== 'COMPLETED') { this.store.activeTaskId = t.id; this.persist(); this.renderActiveTask(); this.renderFocusQueue(); this.renderTasksList(); } });
+    el.querySelector('.task-check-btn').addEventListener('click', e => { e.stopPropagation(); this.toggleTaskCompletion(t.id); });
+    if (editable) {
+      el.querySelector('[data-edit]').addEventListener('click', e => { e.stopPropagation(); this.openTaskModal(t); });
+      el.querySelector('[data-del]').addEventListener('click', e => { e.stopPropagation(); this.deleteTask(t.id); });
+    }
+    if (draggable) {
+      el.draggable = true;
+      el.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', t.id); el.classList.add('dragging'); });
+      el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    }
+    return el;
+  }
+
+  renderFocusQueue() {
+    const list = this.$('focus-queue-list'); list.innerHTML = '';
+    const p = this.pendingTasks();
+    if (!p.length) { list.innerHTML = `<div class="empty-state">${this.store.tasks.length ? '🎉 Everything is done.' : 'No tasks yet. Add your first one with "+ Task".'}</div>`; return; }
+    p.forEach(t => list.appendChild(this.taskEl(t, { editable: true })));
+  }
+
+  renderGoals() {
+    const c = this.$('goals-list-container'); c.innerHTML = '';
+    if (!this.store.goals.length) c.innerHTML = '<span class="hint">No goals yet. Goals group tasks and show where your time went.</span>';
+    this.store.goals.forEach(g => {
+      const n = this.store.tasks.filter(t => t.goalId === g.id && t.status !== 'COMPLETED').length;
+      const chip = document.createElement('div'); chip.className = 'goal-chip'; chip.title = 'Edit goal';
+      chip.innerHTML = `<span class="goal-dot" style="background:${safeColor(g.color)}"></span><span>${esc(g.title)}</span><span class="chip-count">${n}</span><button class="btn-icon danger" title="Delete goal" style="padding:.15rem .35rem;">&times;</button>`;
+      chip.addEventListener('click', e => { if (e.target.closest('button')) return; this.openGoalModal(g); });
+      chip.querySelector('button').addEventListener('click', e => { e.stopPropagation(); this.deleteGoal(g.id); });
+      c.appendChild(chip);
+    });
+    this.fillGoalSelect(this.$('filter-goal'), true);
+  }
+
+  renderTasksList() {
+    const c = this.$('all-tasks-list'); c.innerHTML = '';
+    const gv = this.$('filter-goal').value || 'ALL', pv = this.$('filter-priority').value, sv = this.$('filter-status').value;
+    const list = this.store.tasks.filter(t =>
+      (gv === 'ALL' || (gv === 'NONE' ? !t.goalId : t.goalId === gv)) &&
+      (pv === 'ALL' || String(t.priority) === pv) &&
+      (sv === 'ALL' || t.status === sv)
+    ).sort((a, b) => (a.status === 'COMPLETED') - (b.status === 'COMPLETED') || b.priority - a.priority);
+    if (!list.length) { c.innerHTML = '<div class="empty-state">No matching tasks.</div>'; return; }
+    list.forEach(t => c.appendChild(this.taskEl(t, { editable: true })));
+  }
+
+  renderPlanner() {
+    const date = this.viewDate;
+    this.$('view-date-input').value = date;
+    // backlog
+    const bl = this.$('planner-task-backlog'); bl.innerHTML = '';
+    const pend = this.pendingTasks();
+    this.$('unscheduled-pomo-total').textContent = `${pend.reduce((a, t) => a + this.remainingPomos(t), 0)} pomos left`;
+    if (!pend.length) bl.innerHTML = '<div class="empty-state">No pending tasks.</div>';
+    pend.forEach(t => bl.appendChild(this.taskEl(t, { draggable: true })));
+
+    // timetable
+    const c = this.$('timeline-slots-container'); c.innerHTML = '';
+    const slots = this.slotInfo(date);
+    const sched = this.daySchedule(date);
+    const totals = {}, seen = {};
+    Object.values(sched).forEach(v => totals[v.taskId] = (totals[v.taskId] || 0) + 1);
+    const options = pend.map(t => `<option value="${esc(t.id)}">P${t.priority} · ${esc(t.title)}</option>`).join('');
+    let focusM = 0, busyM = 0;
+    const total = toMin(this.store.settings.workEnd) - toMin(this.store.settings.workStart);
+
+    slots.forEach(s => {
+      const row = document.createElement('div'); row.className = 'time-slot-row';
+      const block = document.createElement('div'); block.className = 'slot-block' + (s.past ? ' past' : '');
+      const len = s.e - s.m;
+      const busy = s.meeting || s.buffer;
+      if (busy) {
+        busyM += len;
+        const b = busy, isMeeting = !!s.meeting;
+        block.classList.add('busy'); if (b.source !== 'manual') block.classList.add('gcal-synced'); if (!isMeeting) block.classList.add('buffer');
+        const label = b.source === 'gcal' ? 'Google Calendar' : b.source === 'ics' ? 'Imported .ics' : 'Manual';
+        const conflict = s.scheduled ? `<div class="slot-warning">⚠ Planned "${esc(s.scheduled.taskTitle)}" clashes with this. Re-plan it.</div>` : '';
+        block.innerHTML = `<div><div class="slot-title">${isMeeting ? '👥' : '⏳ Buffer:'} ${esc(b.title)}</div><div class="slot-subtitle">${label} · ${b.start}–${b.end}</div>${conflict}</div>
+          <div style="display:flex;gap:.25rem;align-items:center;">
+            ${s.scheduled ? '<button class="btn-icon danger" data-clear title="Remove planned task">⌫</button>' : ''}
+            ${b.source === 'manual' && isMeeting ? '<button class="btn-icon danger" data-del title="Delete meeting">&times;</button>' : ''}
+          </div>`;
+        block.querySelector('[data-del]')?.addEventListener('click', () => this.deleteBlock(b.id));
+        block.querySelector('[data-clear]')?.addEventListener('click', () => { delete sched[s.time]; this.persist(); this.renderPlanner(); });
+      } else if (s.scheduled) {
+        focusM += len;
+        const tid = s.scheduled.taskId; seen[tid] = (seen[tid] || 0) + 1;
+        const t = this.findTask(tid), done = t?.status === 'COMPLETED';
+        block.classList.add('scheduled');
+        block.innerHTML = `<div><div class="slot-title">🍅 ${esc(t?.title || s.scheduled.taskTitle)}${done ? ' ✓' : ''}</div><div class="slot-subtitle">Focus block ${seen[tid]}/${totals[tid]}</div></div>
+          <div style="display:flex;gap:.25rem;"><button class="btn-icon" data-focus title="Set as active task">▶</button><button class="btn-icon danger" data-clear title="Clear slot">&times;</button></div>`;
+        block.querySelector('[data-clear]').addEventListener('click', () => { delete sched[s.time]; this.persist(); this.renderPlanner(); });
+        block.querySelector('[data-focus]').addEventListener('click', () => { if (t && !done) { this.store.activeTaskId = t.id; this.persist(); this.renderActiveTask(); this.renderFocusQueue(); document.querySelector('[data-tab="focus-view"]').click(); } });
+        block.draggable = true;
+        block.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', tid); e.dataTransfer.setData('application/x-from-slot', s.time); });
+      } else {
+        block.classList.add('suggested');
+        block.innerHTML = `<div><div class="slot-title" style="color:var(--text-muted)">Free</div><div class="slot-subtitle">${len} min</div></div>
+          ${s.past || !pend.length ? '' : `<select class="select-input slot-assign"><option value="">Assign task…</option>${options}</select>`}`;
+        block.querySelector('select')?.addEventListener('change', e => { if (e.target.value) this.assignSlot(date, s.time, e.target.value); });
+        if (!s.past) {
+          block.addEventListener('dragover', e => { e.preventDefault(); block.classList.add('drag-over'); });
+          block.addEventListener('dragleave', () => block.classList.remove('drag-over'));
+          block.addEventListener('drop', e => {
+            e.preventDefault(); block.classList.remove('drag-over');
+            const id = e.dataTransfer.getData('text/plain'), fromSlot = e.dataTransfer.getData('application/x-from-slot');
+            if (fromSlot && sched[fromSlot]) delete sched[fromSlot];
+            if (id) this.assignSlot(date, s.time, id);
+          });
+        }
+      }
+      row.innerHTML = `<div class="slot-time">${s.time}</div>`; row.appendChild(block); c.appendChild(row);
+    });
+    if (!slots.length) c.innerHTML = '<div class="empty-state">Check your workday hours in Settings.</div>';
+
+    const pct = v => total ? Math.round(v / total * 100) : 0;
+    const freeM = Math.max(0, total - focusM - busyM);
+    this.$('total-workday-hours').textContent = `${fmtDate(date)} · ${(total / 60).toFixed(1)}h`;
+    this.$('balance-focus-hrs').textContent = `${(focusM / 60).toFixed(1)}h`;
+    this.$('balance-meeting-hrs').textContent = `${(busyM / 60).toFixed(1)}h`;
+    this.$('balance-buffer-hrs').textContent = `${(freeM / 60).toFixed(1)}h`;
+    this.$('bar-focus-seg').style.width = pct(focusM) + '%';
+    this.$('bar-meeting-seg').style.width = pct(busyM) + '%';
+    this.$('bar-buffer-seg').style.width = Math.max(0, 100 - pct(focusM) - pct(busyM)) + '%';
+    this.renderCalendarStatus();
+  }
+
+  renderAnalytics() {
+    const today = todayStr(), ss = this.todaySessions();
+    const mins = ss.reduce((a, s) => a + (s.durationMins || 25), 0);
+    this.$('stats-pomos-completed').textContent = ss.length;
+    this.$('stats-focus-minutes').textContent = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+    this.$('stats-tasks-done').textContent = this.store.tasks.filter(t => t.completedAt === today).length;
+    this.$('stats-interruptions-total').textContent = ss.reduce((a, s) => a + (s.interruptions || 0), 0);
+    const note = this.$('daily-reflection-note');
+    if (document.activeElement !== note) note.value = this.store.reflections[today] || '';
+    const bars = this.$('goal-distribution-bars');
+    if (!mins) { bars.innerHTML = '<div class="empty-state">Finish your first pomodoro today to see this.</div>'; return; }
+    const map = {}; ss.forEach(s => { const k = s.goalId || 'none'; map[k] = (map[k] || 0) + (s.durationMins || 25); });
+    bars.innerHTML = Object.entries(map).sort((a, b) => b[1] - a[1]).map(([k, m]) => {
+      const g = this.findGoal(k), p = Math.round(m / mins * 100);
+      return `<div class="goal-bar-item"><div class="goal-bar-label"><span>${esc(g ? g.title : 'No goal')} (${m}m)</span><strong>${p}%</strong></div>
+        <div class="goal-bar-track"><div class="goal-bar-fill" style="width:${p}%;background:${g ? safeColor(g.color) : '#94a3b8'}"></div></div></div>`;
+    }).join('');
+  }
+
+  updateNextMeeting() {
+    const now = new Date(), nowM = now.getHours() * 60 + now.getMinutes();
+    const next = this.blocksFor(todayStr()).map(b => ({ b, diff: toMin(b.start) - nowM })).filter(x => x.diff > 0 && x.diff <= 120).sort((a, b) => a.diff - b.diff)[0];
+    const el = this.$('next-meeting-indicator');
+    if (next) { el.style.display = 'inline-flex'; this.$('next-meeting-text').textContent = `In ${next.diff} min: ${next.b.title} (${next.b.start})`; }
+    else el.style.display = 'none';
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => { window.app = new App(); });
+
+// Offline support and installability when served over https or localhost.
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>
